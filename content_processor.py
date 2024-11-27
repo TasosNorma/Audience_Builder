@@ -7,7 +7,6 @@ from prompt_templates import *
 import os
 from typing import Dict, Optional
 from extractor import extract_content_all_methods
-from fetch_hacker import *
 
 
 class ContentProcessor:
@@ -16,7 +15,6 @@ class ContentProcessor:
         self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o-mini')
 
     # This takes a url and returns a beautifully constructed article based on 4 methods of extraction. 
-    # The URL can be anything from a github repo to a cnbc article.
     def _extract_content(self, url: str) -> Optional[str]:
         """Extract content from URL"""
         extracted_content = extract_content_all_methods(url)
@@ -29,51 +27,43 @@ class ContentProcessor:
         article_text = extracted_content['llm_analysis']
         return article_text
     
-    # Here we setup the chains that are going to be used for our logic, basically we want to check if the article is
-    # relevant to our profile and then create a twitter post from it
-    def setup_chains(self,article):
+
+    def setup_chains(self, article):
         """Initialize the processing chains"""
-        self.relevance_chain = relevance_prompt | self.llm | (lambda x: {
-            "content": article,
-            "relevance_result": x.content
-        })
+        self.post_chain = post_prompt | self.llm
 
-        self.post_chain = post_prompt | self.llm | (lambda x: {
-            "social_post": x.content
-        })
 
-        self.branch = RunnableBranch(
-            (lambda x: x["relevance_result"].lower() == "yes", self.post_chain),
-            (lambda x: None)
-        )
-
-        self.chain = self.relevance_chain | self.branch    
-
-    # Here we create a twitter post from the article. 
-    # We take the article, we setup the chains and then we invoke them.
-    # The post is in a form of a list of tweets created by the 
     def process_url(self, url: str) -> Optional[Dict]:
         """Process a single URL and generate social media posts if relevant"""
         try:
+            print('Extracting Content from URL')
             self.article = self._extract_content(url)
+            print(f'Article extraction result: {self.article}')
+            
             if not self.article:
                 return self._create_response("error", "Failed to extract content from URL", url)
-
+            else:
+                print('Contents from URL extracted')
+            
+            print('Setting up Chains')
             self.setup_chains(self.article)
-            result = self.chain.invoke({
-                "content": self.article,
-            })
+            
+            print('Running chain...')
+            try:
+                result = self.post_chain.invoke({"content": self.article})
+                print(f'Chain result: {result.content[:100]}...')
+            except Exception as chain_error:
+                print(f'Chain error: {str(chain_error)}')
+                raise
 
-            if result is None:
-                return self._create_response("not_relevant", 
-                    "Content not relevant to data/analytics sector", url)
+            if not result:
+                return self._create_response("error", "Failed to generate social post", url)
+            else: 
+                print('Social Post generated')
 
-            social_post = result.get('social_post', '')
-            if not social_post:
-                return self._create_response("error", 
-                    "Failed to generate social post", url)
+            print('Parsing tweets')
+            tweets = self._parse_tweets(result)
 
-            tweets = self._parse_tweets(social_post)
             return {
                 "status": "success",
                 "tweets": tweets,
@@ -82,12 +72,14 @@ class ContentProcessor:
             }
 
         except Exception as e:
+            print(f'Detailed error: {type(e).__name__}: {str(e)}')
             return self._create_response("error", f"An error occurred: {str(e)}", url)
         
     @staticmethod
     def _parse_tweets(social_post: str) -> list:
         """Split and clean tweets from social post"""
-        return [tweet.strip() for tweet in social_post.split('\n\n') 
+        content = social_post.content if hasattr(social_post, 'content') else social_post
+        return [tweet.strip() for tweet in content.split('\n\n') 
                 if tweet.strip() and not tweet.isspace()]
     
     @staticmethod
