@@ -1,0 +1,8 @@
+newspaper3k
+trafilatura
+boilerpy3
+readability-lxml
+beautifulsoup4
+requests
+openai
+langchain
