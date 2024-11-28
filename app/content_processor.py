@@ -3,10 +3,10 @@ from langchain.chains.base import Chain
 from langchain.schema.runnable import RunnableBranch,RunnablePassthrough
 from langchain.output_parsers import ResponseSchema, StructuredOutputParser
 from langchain_openai import ChatOpenAI
-from prompt_templates import *
+from app.prompt_templates import *
 import os
 from typing import Dict, Optional
-from extractor import extract_content_all_methods
+from app.extractor import extract_content_all_methods
 
 
 class ContentProcessor:
