@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 import os
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./instance/prompts.db"
+SQLALCHEMY_DATABASE_URL = f"sqlite:////Users/anastasiosanastasiadis/Desktop/coding/build_audience/instance/prompts.db"
 
 # Create engine
 engine = create_engine(

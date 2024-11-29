@@ -1,4 +1,4 @@
-from app.content_processor import ContentProcessor
+from trash.content_processor import ContentProcessor
 import openai
 
 def test_openai_api():
