@@ -6,9 +6,9 @@ from langchain_openai import ChatOpenAI
 from trash.prompt_templates import *
 import os
 from typing import Dict, Optional
-from extractor import extract_content_all_methods
-from database.database import *
-from database.models import Prompt
+from app.extractor import extract_content_all_methods
+from app.database.database import *
+from app.database.models import Prompt
 from langchain.prompts import PromptTemplate
 
 class ContentProcessor:
@@ -98,6 +98,11 @@ class ContentProcessor:
         
         except Exception as e:
             print(f'Detailed error trying to run the process_url function: {type(e).__name__}: {str(e)}')
+            return {
+            "status": "error",
+            "message": f"An error occurred: {str(e)}",
+            "url": url
+            }
 
 
 

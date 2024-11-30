@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>URL Submit</title>
+</head>
+<body>
+    <h1>Submit URL</h1>
+    <form method="POST">
+        {{form.csrf_token}}
+        {{form.url.label}}
+        {{form.url()}}
+        {{form.submit()}}
+    </form>
+    {% if result %}
+    <div>
+        <h2>Results</h2>
+        {% if result.status == "success" %}
+            {% for tweet in result.tweets %}
+                <p>{{ tweet }}</p>
+            {% endfor %}
+        {% else %}
+            <p>{{result.message}}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</body>
+</html>
+

@@ -6,3 +6,5 @@ beautifulsoup4
 requests
 openai
 langchain
+flask
+flask_wtf

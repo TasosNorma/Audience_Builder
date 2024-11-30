@@ -3,10 +3,10 @@ import openai
 import os
 
 # Import your existing functions
-from extractors.newspaper3k_attempt import get_article_content as newspaper3k_extract
-from extractors.trafilatura_attempt import extract_text as trafilatura_extract
-from extractors.boilerpy_attempt import extract_text as boilerpy_extract
-from extractors.readability_attempt import get_main_content as readability_extract
+from app.extractors.newspaper3k_attempt import get_article_content as newspaper3k_extract
+from app.extractors.trafilatura_attempt import extract_text as trafilatura_extract
+from app.extractors.boilerpy_attempt import extract_text as boilerpy_extract
+from app.extractors.readability_attempt import get_main_content as readability_extract
 
 
 """Creates a prompt for the LLM using the extracted contents."""
