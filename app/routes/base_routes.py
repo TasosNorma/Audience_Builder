@@ -33,8 +33,8 @@ def prompts():
 
     # Create a prompt object that will be placed inside the form for a placeholder in order to showcase only the relevant parts of the prompt
     modified_prompt = prompt
-    parts = modified_prompt.template.split("{content}")
-    editable_template = parts[1] if len(parts) >1 else ''
+    parts = modified_prompt.template.split("### Suffix_")
+    editable_template = parts[0] if len(parts) >1 else ''
     modified_prompt.template = editable_template
 
     if modified_prompt:
@@ -46,9 +46,7 @@ def prompts():
     if form.validate_on_submit():
         try:
             prompt.name = form.name.data
-            new_template = f"Using the following content: \n\n {{content}} \n\n {form.template.data.strip()}"
-            print(f"New template = {new_template}")
-            prompt.template = f"Using the following content: \n\n {{content}} \n\n {form.template.data.strip()}"
+            prompt.template = f"{form.template.data.strip()} \n ### Suffix_ {parts[1]}"
             db.commit()
             print(f"Prompt template : {prompt.template}")
             flash('Prompt updated successfully', 'success')

@@ -88,7 +88,7 @@ if __name__ == "__main__":
     if not openai.api_key:
         raise ValueError("Please set the OPENAI_API_KEY environment variable")
     
-    url = "https://www.cnbc.com/2024/11/22/synapse-bankruptcy-thousands-of-americans-see-their-savings-vanish.html"
+    url = "https://www.databricks.com/blog/what-is-a-data-intelligence-platform"
     results = extract_content_all_methods(url)
     
     # Print LLM analysis
