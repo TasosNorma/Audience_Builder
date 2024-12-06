@@ -5,4 +5,3 @@ venv/
 .vscode/
 trash
 seed.py
-crawl4ai_test.py

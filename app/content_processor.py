@@ -10,10 +10,11 @@ from app.extractor import extract_content_all_methods
 from app.database.database import *
 from app.database.models import Prompt
 from langchain.prompts import PromptTemplate
+from app.crawl4ai_test import *
 
 class ContentProcessor:
     # Initialize the class with LLM, it takes the API key from an environment variable.
-    def __init__(self, model_name='gpt-4-mini'):
+    def __init__(self, model_name='gpt-4o'):
         self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o-mini')
     
     # Here we give the name of the Prompt i.e. the value inside the column "Name"
@@ -45,7 +46,7 @@ class ContentProcessor:
     # Although not really necessary, we create a chain for our OpenAI interaction
     def setup_chain(self):
         self.prompt = self.get_prompt(1)
-        self.prompt_template = PromptTemplate(template=self.prompt,input_variables=["content"])
+        self.prompt_template = PromptTemplate(template=self.prompt,input_variables=["primary","secondary"])
         self.post_chain = self.prompt_template | self.llm
 
     # This is a method that takes the string of the final post and breaks it down to sub-tweets.
@@ -73,11 +74,22 @@ class ContentProcessor:
                 self.setup_chain()
             except Exception as e:
                 print(f'Error setting up the chains : {str(e)}')
+
+            # Get all the secondary articles in a long string
+            try: 
+                self.secondary_articles = asyncio.run(get_formatted_summaries(url))
+                print('We got all the secondary articles successfully!')
+            except Exception as e:
+                print(f'Error getting the secondary articles: {str(e)}')
+
             
             # Run the chain
             try:
                 print("Running the chain")
-                self.result = self.post_chain.invoke({"content": self.article})
+                self.result = self.post_chain.invoke({
+                    "primary": self.article,
+                    "secondary": self.secondary_articles
+                    })
                 print("Successfully completed the run of the chain")
             except Exception as e:
                 print(f"Error trying to run the chain : {str(e)}")
