@@ -10,13 +10,31 @@ from app.database.database import *
 from app.database.models import Prompt
 from langchain.prompts import PromptTemplate
 from app.crawl4ai import *
+import time
+from datetime import datetime
+import json
+from pathlib import Path
 
+# This class can take a url and write a tweet.
 class ContentProcessor:
     # Initialize the class with LLM, it takes the API key from an environment variable.
     def __init__(self):
         self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o-mini')
-    
-    # Here we give the name of the Prompt i.e. the value inside the column "Name"
+        self.traces_dir = Path("traces")
+        self.traces_dir.mkdir(exist_ok=True)
+
+    # This method takes a dictionary and saves the trace in the traces folder
+    def _save_trace(self,trace_data:dict):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        trace_file = self.traces_dir / f"trace_{timestamp}.json"
+        
+        if not isinstance(trace_data, dict):
+            raise ValueError(f"trace_data must be a dictionary, got {type(trace_data)}")
+
+        with open(trace_file, 'w') as f:
+            json.dump(trace_data,f,indent=2)
+            
+    # This method fetches the prompt template of a prompt in the database and takes its ID as an arguement.
     def get_prompt(self, id: int) -> Optional[str]:
         db = SessionLocal()
         try:
@@ -29,7 +47,7 @@ class ContentProcessor:
         finally:
             db.close()
 
-    # This takes a url and returns a beautifully constructed article based on 1 method of extraction that is used in the secondary articles aswell.
+    # This method takes a url and returns a beautifully constructed article based on 1 method of extraction that is used in the secondary articles aswell.
     def _extract_content_crawl4ai(self,url:str) -> Optional[str]:
         try:
             self.crawl4ai_article = asyncio.run(extract_article_content(url))
@@ -38,29 +56,38 @@ class ContentProcessor:
             self.crawl4ai_article = None
         return self.crawl4ai_article
 
-    # Although not really necessary, we create a chain for our OpenAI interaction
+    # This method creates a chain with the proper chain template so that we can insert the primary and secondary articles.
     def setup_chain(self):
         self.prompt = self.get_prompt(1)
         self.prompt_template = PromptTemplate(template=self.prompt,input_variables=["primary","secondary"])
         self.post_chain = self.prompt_template | self.llm
 
-    # This is a method that takes the string of the final post and breaks it down to sub-tweets.
+    # This method takes the string of the final post and breaks it down to sub-tweets.
     @staticmethod
     def _parse_tweets(social_post: str) -> list:
         content = social_post.content if hasattr(social_post, 'content') else social_post
         return [tweet.strip() for tweet in content.split('\n\n') 
                 if tweet.strip() and not tweet.isspace()]
     
-    # This is the main method of this class that takes one URL and returns a dictionary that inside has the list of tweets.
+    # This method takes one URL and returns a dictionary that inside has the list of tweets.
     def process_url(self, url:str) -> Optional[Dict]:
+        trace = {
+            "url": url,
+            "start_time": datetime.now().isoformat(),
+            "steps": [],
+            "content": {}
+        }
+
         try:
             # Extract the article
-            try:
-                print('Extracting the article from the URL')
-                self.article = self._extract_content_crawl4ai(url)
-                print(f'The article extracted is {self.article[:200]}...')
-            except Exception as e:
-                print(f'Error extracting the article: {str(e)}')
+            step_start = time.time()
+            self.article = self._extract_content_crawl4ai(url)
+            trace["steps"].append({
+                "name": "extract_article",
+                "duration": time.time() - step_start,
+                "success": True
+            })
+            trace["content"]["article_preview"] = self.article
             
             # Setup the chain
             try:
@@ -70,40 +97,57 @@ class ContentProcessor:
                 print(f'Error setting up the chains : {str(e)}')
 
             # Get all the secondary articles in a long string
-            try: 
-                self.secondary_articles = asyncio.run(get_formatted_summaries(url))
-                print('We got all the secondary articles successfully!')
-            except Exception as e:
-                print(f'Error getting the secondary articles: {str(e)}')
+            step_start = time.time()
+            self.secondary_articles = asyncio.run(get_formatted_summaries(url))
+            trace["steps"].append({
+                "name": "get_secondary_articles",
+                "duration": time.time() - step_start,
+                "success": True
+            })
+            trace["content"]["secondary_articles"] = self.secondary_articles
 
             
             # Run the chain
-            try:
-                print("Running the chain")
-                self.result = self.post_chain.invoke({
-                    "primary": self.article,
-                    "secondary": self.secondary_articles
-                    })
-                print("Successfully completed the run of the chain")
-            except Exception as e:
-                print(f"Error trying to run the chain : {str(e)}")
+            step_start = time.time()
+            trace["content"]["prompt_template"] = self.prompt  # Store the template
+            trace["content"]["final_prompt"] = self.prompt_template.format(  # Store the formatted prompt
+                primary=self.article,
+                secondary=self.secondary_articles
+            )
+            self.result = self.post_chain.invoke({
+                "primary": self.article,
+                "secondary": self.secondary_articles
+            })
+            trace["steps"].append({
+                "name": "run_chain",
+                "duration": time.time() - step_start,
+                "success": True
+            })
             
             #break down the result in tweets
-            try:
-                print("breaking down the results in different tweets")
-                self.tweets =  self._parse_tweets(self.result)
-            except Exception as e:
-                print(f"Error parsing the tweets : {str(e)}")
+            step_start = time.time()
+            self.tweets = self._parse_tweets(self.result)
+            trace["steps"].append({
+                "name": "parse_tweets",
+                "duration": time.time() - step_start,
+                "success": True
+            })
+            trace["content"]["tweets"] = self.tweets
             
-            return {
+            result = {
                 "status": "success",
                 "tweets": self.tweets,
                 "tweet_count": len(self.tweets),
                 "url": url
             }
+            trace["status"] = "success"
+            self._save_trace(trace)
+            return result
         
         except Exception as e:
-            print(f'Detailed error trying to run the process_url function: {type(e).__name__}: {str(e)}')
+            trace["status"] = "error"
+            trace["error"] = str(e)
+            self._save_trace(trace)
             return {
             "status": "error",
             "message": f"An error occurred: {str(e)}",
