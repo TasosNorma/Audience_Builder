@@ -6,12 +6,12 @@ from crawl4ai.extraction_strategy import LLMExtractionStrategy
 from pydantic import BaseModel, Field
 from urllib.parse import urlparse
 
-# This is to help the URL extraction function
+# This Class is to help the URL extraction function
 class UrlSchema(BaseModel):
     title: str = Field(..., description='The title of the link, indicative')
     url: str = Field(..., description='The actual url')
 
-# Takes a url and tries to re-create the article of the URL as realistically as possible.
+# This function takes a url and tries to re-create the article of the URL as realistically as possible.
 async def extract_article_content(url):
     async with AsyncWebCrawler(verbose = True) as crawler:
         result = await crawler.arun(
@@ -45,7 +45,7 @@ Your final output should be a neatly organized version of the article's textual 
     article = "\n\n".join(formatted_article)
     return article
 
-# Takes a url and returns all the relevant urls referenced in the article of this URL
+# This function takes a url and returns all the relevant urls referenced in the article of this URL
 async def extract_relevant_urls(url):
     domain = urlparse(url).netloc 
     base_url = f"https://{domain}"
@@ -83,7 +83,7 @@ async def extract_relevant_urls(url):
         print(formatted_urls)
         return formatted_urls
 
-# Takes a url and returns a small summary
+# This function takes a url and returns a small summary
 async def write_small_summary(url):
     async with AsyncWebCrawler(verbose = True) as crawler:
         result = await crawler.arun(
@@ -125,7 +125,7 @@ Return only the summary text, with no additional headers or metadata."""
         summary = "\n\n".join(formatted_article)
         return summary.strip()
 
-# This is the main function, It takes the url and returns a dictionary of all relevant URLs and their Summary. 
+# This function takes the url and returns a dictionary of all relevant URLs and their Summary. 
 async def get_summaries_of_urls(url:str) -> dict:
     urls = await extract_relevant_urls(url)
     summaries = {}
@@ -138,19 +138,7 @@ async def get_summaries_of_urls(url:str) -> dict:
             summaries[article_url] = "Error: Could not generate summary"
     return summaries
 
-# This takes a dictionary from get_summaries_of_urls and returns a string in nice format to passed into another prompt
-def format_summaries(summaries:dict) -> str:
-    formatted_output = []
-    for index,(url,summary) in enumerate(summaries.items(),1):
-        article_block = f"""
-Article: {index}
-URL: {url}
-Content: {summary}
-"""
-        formatted_output.append(article_block)
-    return "\n".join(formatted_output)
-
-# This takes a dictionary from get_summaries_of_urls and returns a string in nice format to passed into another prompt
+# This function takes a dictionary from get_summaries_of_urls and returns a string in nice format to passed into another prompt
 async def get_formatted_summaries(url: str) -> str:
     summaries = await get_summaries_of_urls(url)
     formatted_output = []
