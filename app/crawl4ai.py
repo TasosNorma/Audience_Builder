@@ -153,7 +153,66 @@ Content: {summary}
     
     return "\n".join(formatted_output)
 
+# This function takes a url and returns all the articles depicted in the url, url might be the techrunch main page.
+async def extract_all_articles_from_page(url:str) -> dict:
+    async with AsyncWebCrawler(verbose=True) as crawler:
+        result = await crawler.arun(
+            url=url,
+            extraction_strategy=LLMExtractionStrategy(
+                provider='openai/gpt-4o-mini',
+                api_token=os.getenv('OPENAI_API_KEY'),
+                schema=UrlSchema.model_json_schema(),
+                extraction_type='schema',
+                instruction="""You are analyzing a webpage that contains multiple articles (like a blog index or news homepage).
+
+INSTRUCTIONS:
+1. Identify all article links on the page
+2. For each article found, extract:
+   - The complete URL (if relative, note it will be handled later)
+   - The article title
+3. Focus on main content area articles
+4. Exclude:
+   - Navigation menu links
+   - Footer links
+   - Sidebar links
+   - Advertisement links
+   - Author pages
+   - Category/tag pages
+5. Return results as a JSON array of objects with 'url' and 'title' fields
+
+Example output:
+[{
+    "url": "/blog/article-1",
+    "title": "First Article Title"
+}, {
+    "url": "https://example.com/article-2",
+    "title": "Second Article Title"
+}]"""
+            ),
+            bypass_cache=True
+        )
+        # Parse the results
+        articles = json.loads(result.extracted_content)
+        
+        # Process URLs to ensure they're absolute
+        domain = urlparse(url).netloc
+        base_url = f"https://{domain}"
+        article_dict = {}
+        for article in articles:
+            article_url = article['url']
+            # Convert relative URLs to absolute
+            if article_url.startswith('/'):
+                article_url = f"{base_url}{article_url}"
+            article_dict[article_url] = article['title']
+            
+        return article_dict
+
+async def main():
+    articles = await extract_all_articles_from_page('https://www.snowflake.com/en/blog/')
+    for url, title in articles.items():
+        print(f"Title: {title}")
+        print(f"URL: {url}")
+        print("---")
 # Example usage:
 if __name__ == "__main__":
-    formatted_result = asyncio.run(get_formatted_summaries('https://www.databricks.com/blog/introducing-structured-outputs-batch-and-agent-workflows'))
-    print(formatted_result)
+    asyncio.run(main())

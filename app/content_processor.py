@@ -7,7 +7,7 @@ from trash.prompt_templates import *
 import os
 from typing import Dict, Optional
 from app.database.database import *
-from app.database.models import Prompt
+from app.database.models import Prompt,Profile
 from langchain.prompts import PromptTemplate
 from app.crawl4ai import *
 import time
@@ -156,17 +156,76 @@ class ContentProcessor:
     
         # Setup a chain that will take only the primary article as input varibles and will create a chain, the purpose is for tests
     
+# This class is handling the comparison of the article to the profile of the user
+class ProfileComparer:
+    def __init__(self) -> None:
+        self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o', temperature=0)
+        self.crawler = ContentProcessor()
+    
+    # This method returns the interests of a profile, gets an ID of the profile
+    def _get_profile_interests(self, id:int):
+        db= SessionLocal()
+        try:
+            profile = db.query(Profile).filter(Profile.id == id).first()
+            return profile.interests_description
+        except Exception as e:
+            print(f"Error trying to get the profile {str(e)}")
+        finally:
+            db.close()
+    
+    # This method sets up the chain
+    def setup_comparison_chain(self):
+        self.prompt = self.crawler.get_prompt(2)
+        self.comparison_prompt_template = PromptTemplate(template=self.prompt,input_variables=["profile","article"])
+        self.comparison_chain = self.comparison_prompt_template | self.llm
+
+    def compare_article_to_profile(self, article_url: str, id: int) -> Dict:
+        try:
+            # Get profile interests
+            profile_interests = self._get_profile_interests(id)
+            
+            # Extract article content
+            article_content = self.crawler._extract_content_crawl4ai(article_url)
+            
+            # Run the comparison chain
+            result = self.comparison_chain.invoke({
+                "profile": profile_interests,
+                "article": article_content
+            })
+            
+            # Return structured result
+            return {
+                "status": "success",
+                "url": article_url,
+                "profile_id": id,
+                "llm_response": result
+            }
+            
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"An error occurred: {str(e)}",
+                "url": article_url,
+                "profile_id": id
+            }
 
 if __name__ == "__main__":
-    processor = ContentProcessor()
-    test_url = "https://techcrunch.com/2024/12/06/2927301/"
+    # Initialize the ProfileComparer
+    comparer = ProfileComparer()
     
-    print("\n=== Multiple Articles Method Results ===")
-    multi_result = processor.process_url(test_url)
-    print(f"Status: {multi_result['status']}")
-    print(f"URL: {multi_result['url']}")
-    print(f"Total Tweets: {multi_result['tweet_count']}\n")
-    print("Tweets:")
-    for tweet in multi_result['tweets']:
-        print(f"\n{tweet}")
-        print("-" * 80) 
+    # Setup the comparison chain
+    comparer.setup_comparison_chain()
+    
+    # Test URL and profile ID (adjust these values based on your database)
+    test_url = "https://www.databricks.com/blog/equiniti-from-zero-ai"
+    profile_id = 1  # Make sure this ID exists in your database
+    
+    # Run the comparison
+    result = comparer.compare_article_to_profile(test_url, profile_id)
+    
+    # Print results
+    print("\nProfile Comparison Test Results:")
+    print("-" * 50)
+    print(f"Article URL: {result['url']}")
+    print(f"Profile ID: {result['profile_id']}")
+    print(f"Full Response: {result['llm_response']}")

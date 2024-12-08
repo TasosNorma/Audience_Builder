@@ -1,5 +1,5 @@
 from .database import SessionLocal, init_db, get_db , engine
-from .models import Prompt, Base
+from .models import Prompt, Base, Profile
 import json
 
 
@@ -67,6 +67,44 @@ def seed_initial_prompt():
         db.close() 
 
 
+def seed_comparison_prompt():
+    template = """
+    You will receive two inputs: a profile description and an article. Your task is to determine if the person described in the profile would find the article relevant, interesting, and suitable for sharing on their social media.
+    You must be very strict: only answer "Yes" if the article strongly aligns with their interests, professional focus, or sharing habits as described in the profile. Otherwise, answer "No".
+
+    Instructions:
+    1. Read the profile carefully to understand the individual's professional background, interests, and the types of content they are likely to share.
+    2. Read the article and assess its topic, tone, and relevance to the profile's interests.
+    3. If the article's content clearly matches the individual's interests or sharing criteria described in the profile, respond with "Yes".
+    4. If it does not, respond with "No".
+    5. Provide no additional commentary—only "Yes" or "No".
+
+    Profile:
+    "{profile}"
+
+    Article:
+    "{article}"
+    """
+    init_db()
+    db = SessionLocal()
+    try:
+        existing_prompt = db.query(Prompt).filter(Prompt.name == "Profile Comparison Prompt").first()
+        if not existing_prompt:
+            prompt = Prompt(
+                name = "Profile Comparison Prompt",
+                description = "Compares an article with the profile and returns Yes or No based on Fit.",
+                template = template,
+                input_variables = json.dumps(["profile","article"]),
+                is_active = True
+            )
+            db.add(prompt)
+            db.commit()
+            print("Successfully added the first comparison prompt")
+        else:
+            print("Prompt already in the database")
+    finally:
+        db.close()
+
 
 template_6_12_2024 = """
 First template: You are a professional Twitter writer who focuses on business, data analytics, AI, and related news. Your goal is to craft engaging Twitter threads that attract and inform your audience, ultimately building a following for future entrepreneurial ventures.
@@ -126,6 +164,39 @@ def update_prompt_template(prompt_id:int,new_template:str):
     finally:
         db.close()
 
+# A functionn that seeds my profile to the profile model
+def seed_initial_profile():
+    init_db()
+    db = SessionLocal()
+    try:
+        existing_profile = db.query(Profile).filter(Profile.username == "anastasios").first()
+        if not existing_profile:
+            profile = Profile(
+                username="anastasios",
+                full_name="Anastasios Anastasiadis",
+                bio="Head of BI department at a major ERP company in the restaurant sector. Leading analytics product development and passionate about democratizing data through AI.",
+                interests_description="""
+                Experienced BI professional with deep expertise in analytics and data visualization. 
+                Strong focus on the intersection of AI and analytics, particularly interested in:
+                - Democratizing data analytics through conversational AI interfaces
+                - Business Intelligence tools and platforms (Tableau, ThoughtSpot)
+                - Data engineering and pipeline development
+                - Python and SQL development
+                - Enterprise analytics solutions for the restaurant sector
+                - Mobile and desktop analytics applications
+                - Emerging AI technologies in the BI space
+                - Chat-based interfaces for data analysis
+                """
+            )
+            db.add(profile)
+            db.commit()
+            print("Initial profile seeded successfully!")
+        else:
+            print("Profile already exists in database!")
+    finally:
+        db.close()
+            
 
 if __name__ == "__main__":
-    update_prompt_template(1,template_6_12_2024)
+    pass
+    

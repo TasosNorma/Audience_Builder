@@ -14,3 +14,17 @@ class Prompt(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), 
                        onupdate=lambda: datetime.now(timezone.utc))
+    
+class Profile(Base):
+    __tablename__ = 'profiles'
+
+    # Primary Data
+    id = Column(Integer,primary_key=True)
+    username = Column(String(50), unique=True, nullable=False)
+    full_name = Column(String(50),nullable=True)
+    bio = Column(Text, nullable=True) # General description of the user
+    interests_description = Column(Text,nullable=False) # Detailed description of the user
+    # Metadata
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                       onupdate=lambda: datetime.now(timezone.utc))
