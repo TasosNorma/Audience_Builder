@@ -7,13 +7,14 @@ from trash.prompt_templates import *
 import os
 from typing import Dict, Optional
 from app.database.database import *
-from app.database.models import Prompt,Profile
+from app.database.models import Prompt,Profile,OnlineArticles
 from langchain.prompts import PromptTemplate
 from app.crawl4ai import *
 import time
 from datetime import datetime
 import json
 from pathlib import Path
+import asyncio
 
 # This class can take a url and write a tweet.
 class ContentProcessor:
@@ -47,14 +48,14 @@ class ContentProcessor:
         finally:
             db.close()
 
-    # This method takes a url and returns a beautifully constructed article based on 1 method of extraction that is used in the secondary articles aswell.
-    def _extract_content_crawl4ai(self,url:str) -> Optional[str]:
-        try:
-            self.crawl4ai_article = asyncio.run(extract_article_content(url))
-        except Exception as e:
-            print(f"Error extracting article content with crawl4ai: {str(e)}")
-            self.crawl4ai_article = None
-        return self.crawl4ai_article
+    # # This method takes a url and returns a beautifully constructed article based on 1 method of extraction that is used in the secondary articles aswell.
+    # async def _extract_content_crawl4ai(self, url: str) -> Optional[str]:
+    #     try:
+    #         self.crawl4ai_article = await extract_article_content(url)
+    #     except Exception as e:
+    #         print(f"Error extracting article content with crawl4ai: {str(e)}")
+    #         self.crawl4ai_article = None
+    #     return self.crawl4ai_article
 
     # This method creates a chain with the proper chain template so that we can insert the primary and secondary articles.
     def setup_chain(self):
@@ -70,7 +71,7 @@ class ContentProcessor:
                 if tweet.strip() and not tweet.isspace()]
     
     # This method takes one URL and returns a dictionary that inside has the list of tweets.
-    def process_url(self, url:str) -> Optional[Dict]:
+    async def process_url(self, url:str) -> Optional[Dict]:
         trace = {
             "url": url,
             "start_time": datetime.now().isoformat(),
@@ -81,7 +82,7 @@ class ContentProcessor:
         try:
             # Extract the article
             step_start = time.time()
-            self.article = self._extract_content_crawl4ai(url)
+            self.article = await extract_article_content(url)
             trace["steps"].append({
                 "name": "extract_article",
                 "duration": time.time() - step_start,
@@ -98,7 +99,7 @@ class ContentProcessor:
 
             # Get all the secondary articles in a long string
             step_start = time.time()
-            self.secondary_articles = asyncio.run(get_formatted_summaries(url))
+            self.secondary_articles = await get_formatted_summaries(url)
             trace["steps"].append({
                 "name": "get_secondary_articles",
                 "duration": time.time() - step_start,
@@ -179,13 +180,13 @@ class ProfileComparer:
         self.comparison_prompt_template = PromptTemplate(template=self.prompt,input_variables=["profile","article"])
         self.comparison_chain = self.comparison_prompt_template | self.llm
 
-    def compare_article_to_profile(self, article_url: str, id: int) -> Dict:
+    async def compare_article_to_profile(self, article_url: str, id: int) -> Dict:
         try:
             # Get profile interests
             profile_interests = self._get_profile_interests(id)
             
             # Extract article content
-            article_content = self.crawler._extract_content_crawl4ai(article_url)
+            article_content = await extract_article_content(article_url)
             
             # Run the comparison chain
             result = self.comparison_chain.invoke({
@@ -209,23 +210,82 @@ class ProfileComparer:
                 "profile_id": id
             }
 
+# This class is handling all the blogs and the extraction of the articles from them.
+class BlogHandler:
+    def __init__(self) -> None:
+        self.content_processor = ContentProcessor()
+        self.profile_comparer = ProfileComparer()
+
+    # Extracts all the articles of a url. 
+    async def extract_all_articles(self, url:str) -> Optional[Dict]:
+        articles = await extract_all_articles_from_page(url)
+        return articles
+    
+    # Checks if article is in the database, because if it is, it means that we have judged it before.
+    def check_if_online_article_in_database(self, url:str, profile_id:int)-> Optional[bool]:
+        db = SessionLocal()
+        try:
+            online_article = db.query(OnlineArticles).filter(OnlineArticles.url == url, OnlineArticles.profile_id == profile_id).first()
+            return online_article is not None
+        except Exception as e:
+            print(f"Error trying to get the online article {str(e)}")
+            return None
+        finally:
+            db.close()
+
+    # Extracts all articles, checks if they are in database and then returns a dictionary of urls and wheather they fit the user profile or not.
+    async def process_blog_articles(self,blog_url:str,profile_id:int) -> Optional[Dict]:
+        try:
+            try:
+                print("Extracting all the articles from the blog")
+                articles = await extract_all_articles_from_page(blog_url)
+                print("Articles extracted")
+            except Exception as e:
+                print(f"Error extracting articles: {str(e)}")
+                return {
+                    "status": "error", 
+                    "message": f"Failed to extract articles: {str(e)}",
+                    "blog_url": blog_url
+                }
+            results = {}
+            try:
+                self.profile_comparer.setup_comparison_chain()
+            except Exception as e:
+                print(f"Error setting up comparison chain: {str(e)}")
+
+            for article_url in articles:
+                # Skip if already in database
+                if self.check_if_online_article_in_database(article_url, profile_id):
+                    results[article_url] = {
+                        "status": "skipped",
+                        "message": "Article already processed"
+                    }
+                    continue
+                
+                # Compare article to profile
+                comparison_result = await self.profile_comparer.compare_article_to_profile(
+                    article_url=article_url,
+                    id=profile_id
+                )
+                
+                results[article_url] = comparison_result
+            
+            return results
+        except Exception as e:
+            return{
+                "status": "error",
+                "message": f"Error processing blog articles: {str(e)}",
+                "blog_url": blog_url
+            }
+
+    
 if __name__ == "__main__":
-    # Initialize the ProfileComparer
-    comparer = ProfileComparer()
+    # Initialize the BlogHandler
+    blog_handler = BlogHandler()
     
-    # Setup the comparison chain
-    comparer.setup_comparison_chain()
+    result = asyncio.run(blog_handler.process_blog_articles('https://techcrunch.com/',1))
+    print(result)
+
+
     
-    # Test URL and profile ID (adjust these values based on your database)
-    test_url = "https://www.databricks.com/blog/equiniti-from-zero-ai"
-    profile_id = 1  # Make sure this ID exists in your database
     
-    # Run the comparison
-    result = comparer.compare_article_to_profile(test_url, profile_id)
-    
-    # Print results
-    print("\nProfile Comparison Test Results:")
-    print("-" * 50)
-    print(f"Article URL: {result['url']}")
-    print(f"Profile ID: {result['profile_id']}")
-    print(f"Full Response: {result['llm_response']}")

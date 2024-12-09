@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
 from .database import Base
 from datetime import datetime, timezone
 
@@ -24,7 +24,20 @@ class Profile(Base):
     full_name = Column(String(50),nullable=True)
     bio = Column(Text, nullable=True) # General description of the user
     interests_description = Column(Text,nullable=False) # Detailed description of the user
-    # Metadata
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                        onupdate=lambda: datetime.now(timezone.utc))
+    
+class OnlineArticles(Base):
+    __tablename__ = 'online_articles'
+
+    id = Column(Integer,primary_key=True)
+    profile_id = Column(Integer,ForeignKey('profiles.id'), nullable=False)
+    url = Column(String(500),nullable=False)
+    title = Column(Text,nullable=True)
+    profile_fit = Column(Boolean,nullable=True) # Does it fit the user profile or not?
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), 
+                       onupdate=lambda: datetime.now(timezone.utc))
+
+    

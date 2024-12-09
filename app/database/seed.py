@@ -1,5 +1,5 @@
 from .database import SessionLocal, init_db, get_db , engine
-from .models import Prompt, Base, Profile
+from .models import Prompt, Base, Profile, OnlineArticles
 import json
 
 
@@ -105,7 +105,6 @@ def seed_comparison_prompt():
     finally:
         db.close()
 
-
 template_6_12_2024 = """
 First template: You are a professional Twitter writer who focuses on business, data analytics, AI, and related news. Your goal is to craft engaging Twitter threads that attract and inform your audience, ultimately building a following for future entrepreneurial ventures.
 
@@ -195,8 +194,50 @@ def seed_initial_profile():
             print("Profile already exists in database!")
     finally:
         db.close()
-            
+
+# A function that seeds the first article            
+def seed_initial_article():
+    init_db()
+    db = SessionLocal()
+    try:
+        existing_article = db.query(OnlineArticles).filter(
+            OnlineArticles.url == "https://techcrunch.com/2024/12/08/apple-sued-over-abandoning-csam-detection-for-icloud/"
+        ).first()
+        
+        if not existing_article:
+            article = OnlineArticles(
+                profile_id=1,
+                url="https://techcrunch.com/2024/12/08/apple-sued-over-abandoning-csam-detection-for-icloud/",
+                title="Apple sued over abandoning CSAM detection for iCloud",
+                profile_fit=False
+            )
+            db.add(article)
+            db.commit()
+            print("Initial article seeded successfully!")
+        else:
+            print("Article already exists in database!")
+    finally:
+        db.close()
 
 if __name__ == "__main__":
-    pass
+    seed_initial_article()
+    
+    # Query and print the article
+    db = SessionLocal()
+    try:
+        article = db.query(OnlineArticles).first()
+        if article:
+            print("\nArticle Details:")
+            print(f"ID: {article.id}")
+            print(f"Profile ID: {article.profile_id}")
+            print(f"URL: {article.url}")
+            print(f"Title: {article.title}")
+            print(f"Profile Fit: {article.profile_fit}")
+            print(f"Created At: {article.created_at}")
+            print(f"Updated At: {article.updated_at}")
+        else:
+            print("No article found in database!")
+    finally:
+        db.close()
+    
     
