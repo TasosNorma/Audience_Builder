@@ -1,9 +1,9 @@
 from flask import Flask, render_template, Blueprint, redirect, flash, url_for
 import os
-from ..forms import UrlSubmit, PromptForm
+from ..forms import UrlSubmit, PromptForm, ProfileForm
 from ..content_processor import ContentProcessor
 from ..database.database import SessionLocal
-from ..database.models import Prompt
+from ..database.models import Prompt, Profile
 
 bp = Blueprint('base', __name__)
 
@@ -58,3 +58,27 @@ def prompts():
     db.close()
     return render_template('prompts.html', form=form)
     
+@bp.route('/profile', methods = ['GET','POST'])
+def profile():
+    db = SessionLocal()
+    profile = db.query(Profile).filter(Profile.id == 1).first()
+    if profile:
+        form = ProfileForm(obj=profile)
+    else:
+        form = ProfileForm()
+    if form.validate_on_submit():
+        try:
+            print('Trying to change the database object')
+            profile.full_name = form.full_name.data
+            profile.bio = form.bio.data
+            profile.interests_description = form.interests_description.data
+            db.commit()
+            flash('Profile updated successfully','success')
+            print("Finished")
+            return redirect(url_for('base.profile'))
+        except Exception as e:
+            db.rollback()
+            flash(f'Error updating profile {str(e)}')
+        
+    db.close()
+    return render_template('profile.html', form=form)

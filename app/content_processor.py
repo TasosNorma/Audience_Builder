@@ -285,7 +285,3 @@ if __name__ == "__main__":
     
     result = asyncio.run(blog_handler.process_blog_articles('https://techcrunch.com/',1))
     print(result)
-
-
-    
-    

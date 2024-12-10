@@ -11,3 +11,10 @@ class PromptForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
     template = TextAreaField('Template', validators=[DataRequired()])
     submit = SubmitField('Save Changes')
+
+
+class ProfileForm(FlaskForm):
+    full_name = StringField('Name',validators=[DataRequired()])
+    bio = TextAreaField('Bio',validators=[DataRequired()])
+    interests_description = TextAreaField('Interests Description', validators=[DataRequired()])
+    submit = SubmitField('Save Changes')
