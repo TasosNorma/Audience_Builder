@@ -14,6 +14,21 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             border-radius: 10px;
         }
+        /* Loading spinner styles */
+        .loading-spinner {
+            display: none;
+            position: relative;
+            padding: 20px;
+            text-align: center;
+        }
+        /* Show spinner when form has 'loading' class */
+        form.loading .loading-spinner{
+            display: block;
+        }
+        /* Hide submit button when loading */
+        form.loading .submit-btn {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -36,28 +51,64 @@
                     {% endif %}
                 {% endwith %}
                 <div class="card form-card p-4 mb-4">
-                    <form method="POST">
-                        {{ form.csrf_token }}
+                    <form method="POST" name="profile_form" action="{{ url_for('base.update_profile') }}">
+                        {{ profile_form.csrf_token }}
                         <div class="mb-3">
-                            {{ form.full_name.label(class_="form-label") }}
-                            {{ form.full_name(class_="form-control") }}
+                            {{ profile_form.full_name.label(class_="form-label") }}
+                            {{ profile_form.full_name(class_="form-control") }}
                         </div>
                         <div class="mb-3">
-                            {{ form.bio.label(class_="form-label") }}
-                            {{ form.bio(class_="form-control", rows="3") }}
+                            {{ profile_form.bio.label(class_="form-label") }}
+                            {{ profile_form.bio(class_="form-control", rows="3") }}
                         </div>
                         <div class="mb-3">
-                            {{ form.interests_description.label(class_="form-label") }}
-                            {{ form.interests_description(class_="form-control", rows="12") }}
+                            {{ profile_form.interests_description.label(class_="form-label") }}
+                            {{ profile_form.interests_description(class_="form-control", rows="12") }}
                         </div>
                         <div class="d-grid">
-                            {{ form.submit(class_="btn btn-primary btn-lg") }}
+                            {{ profile_form.submit(class_="btn btn-primary btn-lg") }}
                         </div>
                     </form>
                 </div>
+                <div class="card form-card p-4 mb-4">
+                    <h3 class="mb-4">Compare Article with Profile</h3>
+                    <form method="POST" name="comparison_form" action="{{ url_for('base.compare_article') }}" id="comparisonForm">
+                        {{article_comparison_form.csrf_token}}
+                        <div class="mb-3">
+                            {{article_comparison_form.article_url.label (class_="form-label")}}
+                            {{article_comparison_form.article_url(class_="form-control",placeholder="Enter Article URL")}}
+                        </div>
+                        <div class="d-grid">
+                            {{ article_comparison_form.submit(class_="btn btn-secondary btn-lg submit-btn")}}
+                        </div>
+                        <div class="loading-spinner">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-3 text-muted">Comparing article with your profile... This might take a few seconds</p>
+                        </div>
+                    </form>
+                </div>
+                {% if comparison_result %}
+                    <div class="mt-4">
+                        <h4>Comparison Result:</h4>
+                        <div class="alert{% if comparison_result.status == 'success'%} alert-success{%else%}alert-danger{%endif%}">
+                            {% if comparison_result.status == 'success' %}
+                                {{ comparison_result.llm_response }}
+                            {% else %}
+                                {{ comparison_result.message }}
+                            {% endif %}
+                        </div>
+                    </div>
+                {%endif%}
             </div>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('comparisonForm').addEventListener('submit', function(e) {
+            this.classList.add('loading');
+        });
+    </script>
 </body>
 </html>

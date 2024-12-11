@@ -18,3 +18,7 @@ class ProfileForm(FlaskForm):
     bio = TextAreaField('Bio',validators=[DataRequired()])
     interests_description = TextAreaField('Interests Description', validators=[DataRequired()])
     submit = SubmitField('Save Changes')
+
+class ArticleCompareForm(FlaskForm):
+    article_url = StringField('Article URL', validators=[DataRequired(), URL()])
+    submit = SubmitField('Compare with Profile')

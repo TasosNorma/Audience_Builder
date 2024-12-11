@@ -1,7 +1,7 @@
 from flask import Flask, render_template, Blueprint, redirect, flash, url_for
 import os
-from ..forms import UrlSubmit, PromptForm, ProfileForm
-from ..content_processor import ContentProcessor
+from ..forms import UrlSubmit, PromptForm, ProfileForm, ArticleCompareForm
+from ..content_processor import ContentProcessor, ProfileComparer
 from ..database.database import SessionLocal
 from ..database.models import Prompt, Profile
 
@@ -59,26 +59,59 @@ def prompts():
     return render_template('prompts.html', form=form)
     
 @bp.route('/profile', methods = ['GET','POST'])
-def profile():
+async def profile():
     db = SessionLocal()
     profile = db.query(Profile).filter(Profile.id == 1).first()
-    if profile:
-        form = ProfileForm(obj=profile)
-    else:
-        form = ProfileForm()
-    if form.validate_on_submit():
+    
+    profile_form = ProfileForm(obj=profile) if profile else ProfileForm()
+    article_comparison_form = ArticleCompareForm()
+    comparison_result = None
+    db.close()
+    return render_template('profile.html', 
+                        profile_form=profile_form, 
+                        article_comparison_form=article_comparison_form,
+                        comparison_result=comparison_result)
+
+
+@bp.route('/profile/update', methods=['POST'])
+async def update_profile():
+    db = SessionLocal()
+    profile = db.query(Profile).filter(Profile.id == 1).first()
+    profile_form = ProfileForm(obj=profile)
+    if profile_form.validate_on_submit():
         try:
-            print('Trying to change the database object')
-            profile.full_name = form.full_name.data
-            profile.bio = form.bio.data
-            profile.interests_description = form.interests_description.data
+            profile.full_name = profile_form.full_name.data
+            profile.bio = profile_form.bio.data
+            profile.interests_description = profile_form.interests_description.data
             db.commit()
             flash('Profile updated successfully','success')
-            print("Finished")
             return redirect(url_for('base.profile'))
         except Exception as e:
             db.rollback()
-            flash(f'Error updating profile {str(e)}')
-        
+            flash(f'Error updating profile {str(e)}') 
     db.close()
-    return render_template('profile.html', form=form)
+    return redirect(url_for('base.profile'))
+    
+@bp.route('/profile/compare',methods=['POST'])
+async def compare_article():
+    db = SessionLocal()
+    profile = db.query(Profile).filter(Profile.id == 1).first()
+    article_comparison_form = ArticleCompareForm()
+    comparison_result = None
+    if article_comparison_form.validate_on_submit():
+        try:
+            comparer = ProfileComparer()
+            comparer.setup_comparison_chain()
+            comparison_result = await comparer.compare_article_to_profile(
+                article_url=article_comparison_form.article_url.data,
+                id=profile.id
+            )
+            flash('Article comparison completed', 'success')
+        except Exception as e:
+            flash(f'Error comparing the articles {str(e)}')
+    db.close()
+    return render_template('profile.html', 
+                         profile_form=ProfileForm(obj=profile), 
+                         article_comparison_form=article_comparison_form,
+                         comparison_result=comparison_result)
+

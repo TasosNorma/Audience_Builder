@@ -160,7 +160,7 @@ class ContentProcessor:
 # This class is handling the comparison of the article to the profile of the user
 class ProfileComparer:
     def __init__(self) -> None:
-        self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o', temperature=0)
+        self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o-mini', temperature=0)
         self.crawler = ContentProcessor()
     
     # This method returns the interests of a profile, gets an ID of the profile
