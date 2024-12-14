@@ -1,9 +1,12 @@
 from flask import Flask, render_template, Blueprint, redirect, flash, url_for
 import os
-from ..forms import UrlSubmit, PromptForm, ProfileForm, ArticleCompareForm
-from ..content_processor import ContentProcessor, ProfileComparer
+from ..forms import UrlSubmit, PromptForm, ProfileForm, ArticleCompareForm, BlogForm
+from ..content_processor import ContentProcessor, ProfileComparer, BlogHandler
 from ..database.database import SessionLocal
 from ..database.models import Prompt, Profile
+import asyncio
+from ..api.article_operations import get_user_articles
+import logging
 
 bp = Blueprint('base', __name__)
 
@@ -16,7 +19,7 @@ def base():
     if form.validate_on_submit():
         try:
             processor = ContentProcessor()
-            result = processor.process_url(form.url.data)
+            result = asyncio.run(processor.process_url(form.url.data))
         except Exception as e:
             result = {
                 "status":"error",
@@ -24,7 +27,6 @@ def base():
             }
 
     return render_template('index.html', form=form, result=result)
-
 
 @bp.route('/prompts', methods =['GET','POST'])
 def prompts():
@@ -57,7 +59,7 @@ def prompts():
     
     db.close()
     return render_template('prompts.html', form=form)
-    
+   
 @bp.route('/profile', methods = ['GET','POST'])
 async def profile():
     db = SessionLocal()
@@ -71,7 +73,6 @@ async def profile():
                         profile_form=profile_form, 
                         article_comparison_form=article_comparison_form,
                         comparison_result=comparison_result)
-
 
 @bp.route('/profile/update', methods=['POST'])
 async def update_profile():
@@ -94,6 +95,7 @@ async def update_profile():
     
 @bp.route('/profile/compare',methods=['POST'])
 async def compare_article():
+    logging.getLogger().setLevel(logging.ERROR)
     db = SessionLocal()
     profile = db.query(Profile).filter(Profile.id == 1).first()
     article_comparison_form = ArticleCompareForm()
@@ -101,7 +103,6 @@ async def compare_article():
     if article_comparison_form.validate_on_submit():
         try:
             comparer = ProfileComparer()
-            comparer.setup_comparison_chain()
             comparison_result = await comparer.compare_article_to_profile(
                 article_url=article_comparison_form.article_url.data,
                 id=profile.id
@@ -115,3 +116,31 @@ async def compare_article():
                          article_comparison_form=article_comparison_form,
                          comparison_result=comparison_result)
 
+@bp.route('/blogs' ,methods=['GET','POST'])
+async def blogs():
+    form = BlogForm()
+    result = None
+
+    if form.validate_on_submit():
+        try:
+            blog_handler = BlogHandler()
+            result = await blog_handler.process_and_store_articles(form.url.data,1)
+        except Exception as e:
+                result = {
+                "status": "error",
+                "message": f"An error occurred: {str(e)}"
+                }
+    return render_template('blogs.html',form=form,result=result)
+
+@bp.route('/processed-articles', methods=['GET'])
+def processed_articles():
+    db = SessionLocal()
+    try:
+        articles = get_user_articles(db, profile_id=1)  # Hardcoded profile_id for now
+        return render_template('processed_articles.html', 
+                             articles=articles)
+    except Exception as e:
+        flash(f'Error loading articles: {str(e)}', 'error')
+        return redirect(url_for('base.base'))
+    finally:
+        db.close()

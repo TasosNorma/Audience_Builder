@@ -5,6 +5,18 @@ from crawl4ai import AsyncWebCrawler
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 from pydantic import BaseModel, Field
 from urllib.parse import urlparse
+import logging
+import warnings
+import urllib3
+logging.getLogger().setLevel(logging.ERROR)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
+logging.getLogger('crawl4ai').setLevel(logging.ERROR)
+logging.getLogger('httpx').setLevel(logging.ERROR)
+logging.getLogger('crawl4ai.extraction_strategy').setLevel(logging.ERROR)
+logging.getLogger('crawl4ai.extraction_strategy.llm').setLevel(logging.ERROR)
+logging.getLogger('crawl4ai.crawler').setLevel(logging.ERROR)
+warnings.filterwarnings('ignore', category=urllib3.exceptions.NotOpenSSLWarning)
 
 # This Class is to help the URL extraction function
 class UrlSchema(BaseModel):
@@ -13,7 +25,9 @@ class UrlSchema(BaseModel):
 
 # This function takes a url and tries to re-create the article of the URL as realistically as possible.
 async def extract_article_content(url):
-    async with AsyncWebCrawler(verbose = True) as crawler:
+    logging.getLogger('crawl4ai.extraction_strategy.llm').setLevel(logging.ERROR)
+    async with AsyncWebCrawler(verbose=False, log_level=logging.ERROR, silent=True) as crawler:
+        print("Trying to extract the content from the article")
         result = await crawler.arun(
             url=url,
             word_count_threshold=5,
@@ -34,7 +48,8 @@ You are an expert at reading raw webpage markup and reconstructing the original 
 Your final output should be a neatly organized version of the article's textual content, suitable for further processing or summarization.
                 """
             ),
-            bypass_cache=True
+            bypass_cache=True,
+            silent=True
         )
     content_blocks = json.loads(result.extracted_content)
     formatted_article = []
@@ -50,7 +65,7 @@ async def extract_relevant_urls(url):
     domain = urlparse(url).netloc 
     base_url = f"https://{domain}"
     formatted_urls = []
-    async with AsyncWebCrawler(verbose = True) as crawler:
+    async with AsyncWebCrawler(verbose = True, log_level=logging.ERROR) as crawler:
         result = await crawler.arun(
             url=url,
             extraction_strategy=LLMExtractionStrategy(
@@ -71,7 +86,8 @@ async def extract_relevant_urls(url):
                 }]
                 """
             ),
-            bypass_cache = True
+            bypass_cache = True,
+            silent=True
         )
         urls = json.loads(result.extracted_content)
         for article in urls:
@@ -155,7 +171,7 @@ Content: {summary}
 
 # This function takes a url and returns all the articles depicted in the url, url might be the techrunch main page.
 async def extract_all_articles_from_page(url:str) -> dict:
-    async with AsyncWebCrawler(verbose=True) as crawler:
+    async with AsyncWebCrawler(verbose=False, log_level=logging.ERROR) as crawler:
         result = await crawler.arun(
             url=url,
             extraction_strategy=LLMExtractionStrategy(
@@ -189,7 +205,8 @@ Example output:
     "title": "Second Article Title"
 }]"""
             ),
-            bypass_cache=True
+            bypass_cache=True,
+            silent=True
         )
         # Parse the results
         articles = json.loads(result.extracted_content)

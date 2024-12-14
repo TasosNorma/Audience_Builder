@@ -1,5 +1,5 @@
 from app import create_app
-
+from app.warnings_config import * 
 app = create_app()
 
 if __name__ == "__main__":

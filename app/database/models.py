@@ -35,6 +35,7 @@ class OnlineArticles(Base):
     profile_id = Column(Integer,ForeignKey('profiles.id'), nullable=False)
     url = Column(String(500),nullable=False)
     title = Column(Text,nullable=True)
+    source_blog = Column(String(200), nullable=True)
     profile_fit = Column(Boolean,nullable=True) # Does it fit the user profile or not?
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), 

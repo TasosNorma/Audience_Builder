@@ -5,3 +5,5 @@ venv/
 .vscode/
 trash
 seed.py
+migrations
+instance

@@ -15,6 +15,18 @@ from datetime import datetime
 import json
 from pathlib import Path
 import asyncio
+import logging
+import urllib3
+import warnings
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+logging.getLogger('httpx').setLevel(logging.ERROR)
+logging.getLogger('LiteLLM').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
+logging.getLogger().setLevel(logging.ERROR)
+logging.getLogger('crawl4ai').setLevel(logging.ERROR)
+logging.getLogger('crawl4ai.extraction_strategy').setLevel(logging.ERROR)
+logging.getLogger('crawl4ai.crawler').setLevel(logging.ERROR)
+warnings.filterwarnings('ignore', category=urllib3.exceptions.NotOpenSSLWarning)
 
 # This class can take a url and write a tweet.
 class ContentProcessor:
@@ -40,7 +52,7 @@ class ContentProcessor:
         db = SessionLocal()
         try:
             prompt = db.query(Prompt).filter(Prompt.id == id).first()
-            print(f"Fetched the template from the database and the template is :{prompt.template}")
+            print(f"Fetched the template from the database and the template is :{prompt.template[:50]}")
             return prompt.template if prompt else None
         except Exception as e:
             print(f"Error fetching prompt from database {str(e)}")
@@ -162,12 +174,14 @@ class ProfileComparer:
     def __init__(self) -> None:
         self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o-mini', temperature=0)
         self.crawler = ContentProcessor()
+        self.setup_comparison_chain()
     
     # This method returns the interests of a profile, gets an ID of the profile
     def _get_profile_interests(self, id:int):
         db= SessionLocal()
         try:
             profile = db.query(Profile).filter(Profile.id == id).first()
+            print(f"Got the profile interests")
             return profile.interests_description
         except Exception as e:
             print(f"Error trying to get the profile {str(e)}")
@@ -182,27 +196,25 @@ class ProfileComparer:
 
     async def compare_article_to_profile(self, article_url: str, id: int) -> Dict:
         try:
-            # Get profile interests
             profile_interests = self._get_profile_interests(id)
-            
-            # Extract article content
             article_content = await extract_article_content(article_url)
-            
-            # Run the comparison chain
+            print(f"Profile interests: {profile_interests[:50]}")
+            print(f"Article content preview: {article_content[:50]}...")
             result = self.comparison_chain.invoke({
                 "profile": profile_interests,
                 "article": article_content
             })
-            
-            # Return structured result
+            llm_response = result.content if hasattr(result, 'content') else str(result)
+            print(f"LLM Response: {llm_response}")  # Debug print
             return {
                 "status": "success",
                 "url": article_url,
                 "profile_id": id,
-                "llm_response": result
+                "llm_response": llm_response
             }
             
         except Exception as e:
+            print(f"Comparison error: {str(e)}")
             return {
                 "status": "error",
                 "message": f"An error occurred: {str(e)}",
@@ -215,73 +227,68 @@ class BlogHandler:
     def __init__(self) -> None:
         self.content_processor = ContentProcessor()
         self.profile_comparer = ProfileComparer()
-
-    # Extracts all the articles of a url. 
-    async def extract_all_articles(self, url:str) -> Optional[Dict]:
-        articles = await extract_all_articles_from_page(url)
-        return articles
     
-    # Checks if article is in the database, because if it is, it means that we have judged it before.
-    def check_if_online_article_in_database(self, url:str, profile_id:int)-> Optional[bool]:
+    # This method takes a url (a blog url) and a profile, it returns a list of dictionaries with all the relevant articles of the blog and wheather they fit the profile or not. 
+    # It also stores the results in the database
+    async def process_and_store_articles(self, blog_url: str, profile_id: int) -> list[Dict]:
         db = SessionLocal()
         try:
-            online_article = db.query(OnlineArticles).filter(OnlineArticles.url == url, OnlineArticles.profile_id == profile_id).first()
-            return online_article is not None
+            # Get all articles from the blog
+            articles_dict = await extract_all_articles_from_page(blog_url)
+            
+            # Create tasks for all article comparisons
+            comparison_tasks = [
+                self.profile_comparer.compare_article_to_profile(url, profile_id)
+                for url in articles_dict.keys()
+            ]
+
+            # Run all comparisons concurrently
+            comparison_results = await asyncio.gather(*comparison_tasks)
+
+            # Process Results and Store in Database
+            results = []
+            for (url, title), result in zip(articles_dict.items(), comparison_results):
+                fits_profile = False
+                if result["status"] == "success":
+                    llm_response = str(result["llm_response"]).lower()
+                    print(f"\nAnalyzing article: {title}")
+                    print(f"LLM Response: {llm_response}")
+                    
+                    # More comprehensive check for positive responses
+                    positive_indicators = ["yes", "true", "relevant", "matches", "fits"]
+                    fits_profile = any(indicator in llm_response for indicator in positive_indicators)
+                    print(f"Fits profile: {fits_profile}")
+                
+                # Create new OnlineArticles entry
+                new_article = OnlineArticles(
+                    profile_id=profile_id,
+                    url=url,
+                    title=title,
+                    source_blog=blog_url,
+                    profile_fit=fits_profile
+                )
+                db.add(new_article)
+                
+                article_result = {
+                    "url": url,
+                    "title": title,
+                    "fits_profile": fits_profile
+                }
+                results.append(article_result)
+            
+            # Commit all database changes
+            db.commit()
+            return results
+            
         except Exception as e:
-            print(f"Error trying to get the online article {str(e)}")
-            return None
+            db.rollback()
+            print(f"Error processing and storing articles: {str(e)}")
+            return []
         finally:
             db.close()
-
-    # Extracts all articles, checks if they are in database and then returns a dictionary of urls and wheather they fit the user profile or not.
-    async def process_blog_articles(self,blog_url:str,profile_id:int) -> Optional[Dict]:
-        try:
-            try:
-                print("Extracting all the articles from the blog")
-                articles = await extract_all_articles_from_page(blog_url)
-                print("Articles extracted")
-            except Exception as e:
-                print(f"Error extracting articles: {str(e)}")
-                return {
-                    "status": "error", 
-                    "message": f"Failed to extract articles: {str(e)}",
-                    "blog_url": blog_url
-                }
-            results = {}
-            try:
-                self.profile_comparer.setup_comparison_chain()
-            except Exception as e:
-                print(f"Error setting up comparison chain: {str(e)}")
-
-            for article_url in articles:
-                # Skip if already in database
-                if self.check_if_online_article_in_database(article_url, profile_id):
-                    results[article_url] = {
-                        "status": "skipped",
-                        "message": "Article already processed"
-                    }
-                    continue
-                
-                # Compare article to profile
-                comparison_result = await self.profile_comparer.compare_article_to_profile(
-                    article_url=article_url,
-                    id=profile_id
-                )
-                
-                results[article_url] = comparison_result
-            
-            return results
-        except Exception as e:
-            return{
-                "status": "error",
-                "message": f"Error processing blog articles: {str(e)}",
-                "blog_url": blog_url
-            }
-
     
 if __name__ == "__main__":
     # Initialize the BlogHandler
     blog_handler = BlogHandler()
-    
-    result = asyncio.run(blog_handler.process_blog_articles('https://techcrunch.com/',1))
-    print(result)
+    results = asyncio.run(blog_handler.process_articles_for_profile('https://www.qlik.com/blog?page=1&limit=9',1))
+    print(results)
