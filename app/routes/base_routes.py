@@ -1,4 +1,5 @@
 from flask import Flask, render_template, Blueprint, redirect, flash, url_for
+from flask_login import login_required, current_user
 import os
 from ..forms import UrlSubmit, PromptForm, ProfileForm, ArticleCompareForm, BlogForm
 from ..content_processor import ContentProcessor, ProfileComparer, BlogHandler
@@ -11,7 +12,8 @@ import logging
 bp = Blueprint('base', __name__)
 
 
-@bp.route('/',methods=['GET','POST'])
+@bp.route('/home',methods=['GET','POST'])
+@login_required
 def base():
     form = UrlSubmit()
     result = None
@@ -29,6 +31,7 @@ def base():
     return render_template('index.html', form=form, result=result)
 
 @bp.route('/prompts', methods =['GET','POST'])
+@login_required
 def prompts():
     db = SessionLocal()
     prompt = db.query(Prompt).filter(Prompt.id == 1).first()
@@ -61,6 +64,7 @@ def prompts():
     return render_template('prompts.html', form=form)
    
 @bp.route('/profile', methods = ['GET','POST'])
+@login_required
 async def profile():
     db = SessionLocal()
     profile = db.query(Profile).filter(Profile.id == 1).first()
@@ -75,6 +79,7 @@ async def profile():
                         comparison_result=comparison_result)
 
 @bp.route('/profile/update', methods=['POST'])
+@login_required
 async def update_profile():
     db = SessionLocal()
     profile = db.query(Profile).filter(Profile.id == 1).first()
@@ -94,6 +99,7 @@ async def update_profile():
     return redirect(url_for('base.profile'))
     
 @bp.route('/profile/compare',methods=['POST'])
+@login_required
 async def compare_article():
     logging.getLogger().setLevel(logging.ERROR)
     db = SessionLocal()
@@ -117,6 +123,7 @@ async def compare_article():
                          comparison_result=comparison_result)
 
 @bp.route('/blogs' ,methods=['GET','POST'])
+@login_required
 async def blogs():
     form = BlogForm()
     result = None
@@ -133,6 +140,7 @@ async def blogs():
     return render_template('blogs.html',form=form,result=result)
 
 @bp.route('/processed-articles', methods=['GET'])
+@login_required
 def processed_articles():
     db = SessionLocal()
     try:
