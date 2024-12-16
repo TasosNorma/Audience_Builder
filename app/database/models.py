@@ -9,6 +9,7 @@ class Prompt(Base):
     __tablename__ = 'prompts'
 
     id = Column(Integer, primary_key=True)
+    type = Column(Integer,nullable=False)
     name = Column(String(100), nullable=False)
     user_id = Column(Integer,ForeignKey('users.id'), nullable=False)
     description = Column(Text, nullable=True)

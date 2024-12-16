@@ -18,6 +18,8 @@ import asyncio
 import logging
 import urllib3
 import warnings
+from app.api.prompt_operations import get_prompt
+
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 logging.getLogger('httpx').setLevel(logging.ERROR)
 logging.getLogger('LiteLLM').setLevel(logging.ERROR)
@@ -59,15 +61,6 @@ class ContentProcessor:
             return None
         finally:
             db.close()
-
-    # # This method takes a url and returns a beautifully constructed article based on 1 method of extraction that is used in the secondary articles aswell.
-    # async def _extract_content_crawl4ai(self, url: str) -> Optional[str]:
-    #     try:
-    #         self.crawl4ai_article = await extract_article_content(url)
-    #     except Exception as e:
-    #         print(f"Error extracting article content with crawl4ai: {str(e)}")
-    #         self.crawl4ai_article = None
-    #     return self.crawl4ai_article
 
     # This method creates a chain with the proper chain template so that we can insert the primary and secondary articles.
     def setup_chain(self):
@@ -171,9 +164,9 @@ class ContentProcessor:
     
 # This class is handling the comparison of the article to the profile of the user
 class ProfileComparer:
-    def __init__(self) -> None:
+    def __init__(self,user_id:int) -> None:
         self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o-mini', temperature=0)
-        self.crawler = ContentProcessor()
+        self.user_id = user_id
         self.setup_comparison_chain()
     
     # This method returns the interests of a profile, gets an ID of the profile
@@ -190,7 +183,7 @@ class ProfileComparer:
     
     # This method sets up the chain
     def setup_comparison_chain(self):
-        self.prompt = self.crawler.get_prompt(2)
+        self.prompt = get_prompt(prompt_type=2, user_id=self.user_id)
         self.comparison_prompt_template = PromptTemplate(template=self.prompt,input_variables=["profile","article"])
         self.comparison_chain = self.comparison_prompt_template | self.llm
 
@@ -224,21 +217,26 @@ class ProfileComparer:
 
 # This class is handling all the blogs and the extraction of the articles from them.
 class BlogHandler:
-    def __init__(self) -> None:
+    def __init__(self,user_id:int) -> None:
+        self.user_id = user_id
         self.content_processor = ContentProcessor()
-        self.profile_comparer = ProfileComparer()
+        self.profile_comparer = ProfileComparer(user_id=self.user_id)
     
     # This method takes a url (a blog url) and a profile, it returns a list of dictionaries with all the relevant articles of the blog and wheather they fit the profile or not. 
     # It also stores the results in the database
-    async def process_and_store_articles(self, blog_url: str, profile_id: int) -> list[Dict]:
+    async def process_and_store_articles(self, blog_url: str, user_id: int) -> list[Dict]:
         db = SessionLocal()
         try:
             # Get all articles from the blog
             articles_dict = await extract_all_articles_from_page(blog_url)
+            # Get the user's profile
+            profile = db.query(Profile).filter(Profile.user_id == user_id).first()
+            if not profile:
+                raise ValueError(f"No profile found for user_id: {user_id}")
             
             # Create tasks for all article comparisons
             comparison_tasks = [
-                self.profile_comparer.compare_article_to_profile(url, profile_id)
+                self.profile_comparer.compare_article_to_profile(url, profile.id)
                 for url in articles_dict.keys()
             ]
 
@@ -261,7 +259,7 @@ class BlogHandler:
                 
                 # Create new OnlineArticles entry
                 new_article = OnlineArticles(
-                    profile_id=profile_id,
+                    user_id=user_id,
                     url=url,
                     title=title,
                     source_blog=blog_url,

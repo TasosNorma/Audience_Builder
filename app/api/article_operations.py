@@ -6,7 +6,7 @@ from datetime import datetime
 
 def get_user_articles(
     db: Session, 
-    profile_id: int,
+    user_id: int,
     limit: int = 50  # Adding a limit for safety
 ) -> List[OnlineArticles]:
     """
@@ -15,7 +15,7 @@ def get_user_articles(
     """
     try:
         articles = db.query(OnlineArticles)\
-            .filter(OnlineArticles.profile_id == profile_id)\
+            .filter(OnlineArticles.user_id == user_id)\
             .order_by(desc(OnlineArticles.created_at))\
             .limit(limit)\
             .all()

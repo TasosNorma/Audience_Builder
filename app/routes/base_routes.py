@@ -34,7 +34,7 @@ def base():
 @login_required
 def prompts():
     db = SessionLocal()
-    prompt = db.query(Prompt).filter(Prompt.id == 1).first()
+    prompt = db.query(Prompt).filter(Prompt.user_id == current_user.id, Prompt.type == 1).first()
 
     # Create a prompt object that will be placed inside the form for a placeholder in order to showcase only the relevant parts of the prompt
     modified_prompt = prompt
@@ -45,7 +45,7 @@ def prompts():
     if modified_prompt:
         form = PromptForm(obj=modified_prompt)
     else:
-        form = PromptForm(obj=prompt)
+        form = PromptForm()
 
     # Change the name and the template of the prompt
     if form.validate_on_submit():
@@ -67,7 +67,7 @@ def prompts():
 @login_required
 async def profile():
     db = SessionLocal()
-    profile = db.query(Profile).filter(Profile.id == 1).first()
+    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
     
     profile_form = ProfileForm(obj=profile) if profile else ProfileForm()
     article_comparison_form = ArticleCompareForm()
@@ -82,13 +82,14 @@ async def profile():
 @login_required
 async def update_profile():
     db = SessionLocal()
-    profile = db.query(Profile).filter(Profile.id == 1).first()
+    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
     profile_form = ProfileForm(obj=profile)
     if profile_form.validate_on_submit():
         try:
             profile.full_name = profile_form.full_name.data
             profile.bio = profile_form.bio.data
             profile.interests_description = profile_form.interests_description.data
+            profile.user_id = current_user.id
             db.commit()
             flash('Profile updated successfully','success')
             return redirect(url_for('base.profile'))
@@ -103,12 +104,12 @@ async def update_profile():
 async def compare_article():
     logging.getLogger().setLevel(logging.ERROR)
     db = SessionLocal()
-    profile = db.query(Profile).filter(Profile.id == 1).first()
+    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
     article_comparison_form = ArticleCompareForm()
     comparison_result = None
     if article_comparison_form.validate_on_submit():
         try:
-            comparer = ProfileComparer()
+            comparer = ProfileComparer(current_user.id)
             comparison_result = await comparer.compare_article_to_profile(
                 article_url=article_comparison_form.article_url.data,
                 id=profile.id
@@ -131,7 +132,7 @@ async def blogs():
     if form.validate_on_submit():
         try:
             blog_handler = BlogHandler()
-            result = await blog_handler.process_and_store_articles(form.url.data,1)
+            result = await blog_handler.process_and_store_articles(form.url.data,current_user.id)
         except Exception as e:
                 result = {
                 "status": "error",
@@ -144,7 +145,7 @@ async def blogs():
 def processed_articles():
     db = SessionLocal()
     try:
-        articles = get_user_articles(db, profile_id=1)  # Hardcoded profile_id for now
+        articles = get_user_articles(db,current_user.id)
         return render_template('processed_articles.html', 
                              articles=articles)
     except Exception as e:
