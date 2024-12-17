@@ -1,4 +1,4 @@
-from flask import Flask, render_template, Blueprint, redirect, flash, url_for
+from flask import Flask, render_template, Blueprint, redirect, flash, url_for, request
 from flask_login import login_required, current_user
 import os
 from ..forms import UrlSubmit, PromptForm, ProfileForm, ArticleCompareForm, BlogForm
@@ -11,6 +11,11 @@ import logging
 
 bp = Blueprint('base', __name__)
 
+# @bp.before_request
+# def check_onboarding():
+#     # We only need to check if the current page isn't the onboarding page
+#     if not current_user.is_onboarded and request.endpoint != 'base.onboarding':
+#         return redirect(url_for('base.onboarding'))
 
 @bp.route('/home',methods=['GET','POST'])
 @login_required
@@ -153,3 +158,7 @@ def processed_articles():
         return redirect(url_for('base.base'))
     finally:
         db.close()
+
+# @bp.route('/onboarding',method=['GET','POST'])
+# @login_required
+# def onboarding():

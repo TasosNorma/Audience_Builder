@@ -1,6 +1,5 @@
 from .database import *
-from .models import Prompt,Profile,OnlineArticles
-
+from .models import User
 
 if __name__ == "__main__":
     init_db()

@@ -3,6 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from ..forms import LoginForm, RegistrationForm
 from ..database.database import SessionLocal
 from ..database.models import User
+from ..api.onboarding_operations import create_new_user
 
 auth_bp = Blueprint('auth',__name__)
 
@@ -38,11 +39,7 @@ def register():
                 flash('Email already registered')
                 return render_template('auth/register.html', form=form)
             
-            # Create new user
-            user = User(email=form.email.data,is_active=True)
-            user.set_password(form.password.data)
-            db.add(user)
-            db.commit()
+            create_new_user(email=form.email.data, password=form.password.data)
             flash('Registration successful! Please login.')
             return redirect(url_for('auth.login'))
         except Exception as e:
