@@ -4,18 +4,18 @@ import os
 from ..forms import UrlSubmit, PromptForm, ProfileForm, ArticleCompareForm, BlogForm
 from ..content_processor import ContentProcessor, ProfileComparer, BlogHandler
 from ..database.database import SessionLocal
-from ..database.models import Prompt, Profile
+from ..database.models import Prompt, Profile, User
 import asyncio
 from ..api.article_operations import get_user_articles
 import logging
 
 bp = Blueprint('base', __name__)
 
-# @bp.before_request
-# def check_onboarding():
-#     # We only need to check if the current page isn't the onboarding page
-#     if not current_user.is_onboarded and request.endpoint != 'base.onboarding':
-#         return redirect(url_for('base.onboarding'))
+@bp.before_request
+def check_onboarding():
+    # We only need to check if the current page isn't the onboarding page
+    if not current_user.is_onboarded and request.endpoint != 'base.onboarding':
+        return redirect(url_for('base.onboarding'))
 
 @bp.route('/home',methods=['GET','POST'])
 @login_required
@@ -159,6 +159,37 @@ def processed_articles():
     finally:
         db.close()
 
-# @bp.route('/onboarding',method=['GET','POST'])
-# @login_required
-# def onboarding():
+@bp.route('/onboarding',methods=['GET','POST'])
+@login_required
+def onboarding():
+    if current_user.is_onboarded:
+        return redirect(url_for('base.base'))
+    
+    db= SessionLocal()
+    form = ProfileForm()
+
+    if form.validate_on_submit():
+        try:
+            profile = Profile(
+                user_id = current_user.id,
+                username = current_user.email.split('@')[0],
+                full_name = form.full_name.data,
+                bio = form.bio.data,
+                interests_description = form.interests_description.data
+            )
+            user = db.query(User).get(current_user.id)
+            user.is_onboarded = True
+
+            db.add(profile)
+            db.commit()
+
+            flash('Profile Created Successfully!','success')
+            return redirect(url_for('base.base'))
+        except Exception as e:
+            db.rollback()
+            flash('Error creating the profile','error')
+            print(f'Error creating the profile {str(e)} ')
+        finally:
+            db.close()
+    
+    return render_template('onboarding.html',form=form)

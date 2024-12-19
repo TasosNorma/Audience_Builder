@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - Get Started</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg,#f5f7fa 0%, #c3cfe2 50% );
+            min-height: 100vh;
+        }
+        .form-card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        .welcome-icon {
+            font-size: 3rem;
+            color: #0d6efd;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="text-center py-5">
+                    <i class="bi bi-emoji-smile welcome-icon"></i>
+                    <h1 class="display-4 fw-bold">Welcome to Content Curator!</h1>
+                    <p class="lead text-muted">Please fill in the following information to get started</p>
+                </div>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show mb-4" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div class="card form-card p-4 mb-4">
+                    <form method="POST">
+                        {{ form.csrf_token }}
+                        <div class="mb-4">
+                            {{ form.full_name.label(class_="form-label fw-bold") }}
+                            {{ form.full_name(class_="form-control", placeholder="John Smith") }}
+                            <div class="form-text">Enter your full name as you'd like it to appear</div>
+                        </div>
+
+                        <div class="mb-4">
+                            {{ form.bio.label(class_="form-label fw-bold") }}
+                            {{ form.bio(class_="form-control", rows="3", placeholder="Sports Journalist at The Guardian") }}
+                            <div class="form-text">A brief description of who you are professionally</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="interests_description" class="form-label fw-bold">What type of online articles interest you?</label>
+                            {{ form.interests_description(class_="form-control", rows="6", 
+                                placeholder="I like only articles that have to do with sports and especially football. Any type of news for the Premier League and any major news for other leagues.") }}
+                            <div class="form-text">Be specific about your interests to help us curate better content for you</div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            {{ form.submit(class_="btn btn-primary btn-lg", value="Get Started") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

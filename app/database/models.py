@@ -61,7 +61,7 @@ class User(Base,UserMixin):
     profile = relationship('Profile',back_populates='user', uselist=False)
     prompts = relationship('Prompt',back_populates='user')
     online_articles = relationship('OnlineArticles', back_populates='user')
-    is_onboarded = Column(Boolean,default=True)
+    is_onboarded = Column(Boolean,default=False)
         
     def set_password(self, password, method='pbkdf2:sha256'):
         self.password_hash = generate_password_hash(password, method=method)
