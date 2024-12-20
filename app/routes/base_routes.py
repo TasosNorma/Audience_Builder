@@ -1,15 +1,19 @@
 from flask import Flask, render_template, Blueprint, redirect, flash, url_for, request
 from flask_login import login_required, current_user
 import os
-from ..forms import UrlSubmit, PromptForm, ProfileForm, ArticleCompareForm, BlogForm
+from ..forms import UrlSubmit, PromptForm, ProfileForm, ArticleCompareForm, BlogForm, SetupProfileForm,SettingsForm
 from ..content_processor import ContentProcessor, ProfileComparer, BlogHandler
 from ..database.database import SessionLocal
 from ..database.models import Prompt, Profile, User
 import asyncio
 from ..api.article_operations import get_user_articles
 import logging
+from cryptography.fernet import Fernet
+from ..api.prompt_operations import get_prompt
+
 
 bp = Blueprint('base', __name__)
+fernet = Fernet(os.environ['ENCRYPTION_KEY'].encode())
 
 @bp.before_request
 def check_onboarding():
@@ -25,7 +29,7 @@ def base():
 
     if form.validate_on_submit():
         try:
-            processor = ContentProcessor()
+            processor = ContentProcessor(current_user)
             result = asyncio.run(processor.process_url(form.url.data))
         except Exception as e:
             result = {
@@ -114,10 +118,10 @@ async def compare_article():
     comparison_result = None
     if article_comparison_form.validate_on_submit():
         try:
-            comparer = ProfileComparer(current_user.id)
+            comparer = ProfileComparer(current_user)
             comparison_result = await comparer.compare_article_to_profile(
                 article_url=article_comparison_form.article_url.data,
-                id=profile.id
+                user_id=current_user.id
             )
             flash('Article comparison completed', 'success')
         except Exception as e:
@@ -136,8 +140,11 @@ async def blogs():
 
     if form.validate_on_submit():
         try:
-            blog_handler = BlogHandler()
+            print('Setting up blog handler')
+            blog_handler = BlogHandler(current_user)
+            print('Starting the processing and storing of articles')
             result = await blog_handler.process_and_store_articles(form.url.data,current_user.id)
+            print('articles processed')
         except Exception as e:
                 result = {
                 "status": "error",
@@ -166,7 +173,7 @@ def onboarding():
         return redirect(url_for('base.base'))
     
     db= SessionLocal()
-    form = ProfileForm()
+    form = SetupProfileForm()
 
     if form.validate_on_submit():
         try:
@@ -179,7 +186,7 @@ def onboarding():
             )
             user = db.query(User).get(current_user.id)
             user.is_onboarded = True
-
+            user.openai_api_key = fernet.encrypt(form.openai_api_key.data.encode())
             db.add(profile)
             db.commit()
 
@@ -193,3 +200,27 @@ def onboarding():
             db.close()
     
     return render_template('onboarding.html',form=form)
+
+@bp.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    db = SessionLocal()
+    form = SettingsForm()
+    
+    if form.validate_on_submit():
+        try:
+            user = db.query(User).get(current_user.id)
+            user.openai_api_key = fernet.encrypt(form.openai_api_key.data.encode())
+            db.commit()
+            flash('Settings updated successfully', 'success')
+            return redirect(url_for('base.settings'))
+        except Exception as e:
+            db.rollback()
+            flash(f'Error updating settings: {str(e)}', 'error')
+        finally:
+            db.close()
+    elif request.method == 'GET':
+        form.openai_api_key.data = '********************************************************************'
+    
+    db.close()
+    return render_template('settings.html', form=form)

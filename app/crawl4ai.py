@@ -24,7 +24,7 @@ class UrlSchema(BaseModel):
     url: str = Field(..., description='The actual url')
 
 # This function takes a url and tries to re-create the article of the URL as realistically as possible.
-async def extract_article_content(url):
+async def extract_article_content(url,api_key):
     logging.getLogger('crawl4ai.extraction_strategy.llm').setLevel(logging.ERROR)
     async with AsyncWebCrawler(verbose=False, log_level=logging.ERROR, silent=True) as crawler:
         print("Trying to extract the content from the article")
@@ -33,7 +33,7 @@ async def extract_article_content(url):
             word_count_threshold=5,
             extraction_strategy=LLMExtractionStrategy(
                 provider='openai/gpt-4o-mini',
-                api_token=os.getenv('OPENAI_API_KEY'),
+                api_token=api_key,
                 instruction=""" 
 You are an expert at reading raw webpage markup and reconstructing the original article text. You will be given the complete HTML markup of a webpage that contains an article. Your task is to produce the clean article text in a well-structured, hierarchical format, reflecting the original headings and subheadings as closely as possible.
 # Instructions:
@@ -61,7 +61,7 @@ Your final output should be a neatly organized version of the article's textual 
     return article
 
 # This function takes a url and returns all the relevant urls referenced in the article of this URL
-async def extract_relevant_urls(url):
+async def extract_relevant_urls(url,api_key):
     domain = urlparse(url).netloc 
     base_url = f"https://{domain}"
     formatted_urls = []
@@ -70,7 +70,7 @@ async def extract_relevant_urls(url):
             url=url,
             extraction_strategy=LLMExtractionStrategy(
                 provider='openai/gpt-4o-mini',
-                api_token=os.getenv('OPENAI_API_KEY'),
+                api_token=api_key,
                 schema= UrlSchema.model_json_schema(),
                 extraction_type='schema',
                 instruction="""You are given an HTML document representing an article. 
@@ -142,8 +142,8 @@ Return only the summary text, with no additional headers or metadata."""
         return summary.strip()
 
 # This function takes the url and returns a dictionary of all relevant URLs and their Summary. 
-async def get_summaries_of_urls(url:str) -> dict:
-    urls = await extract_relevant_urls(url)
+async def get_summaries_of_urls(url:str,api_key:str) -> dict:
+    urls = await extract_relevant_urls(url,api_key)
     summaries = {}
     for article_url in urls:
         try:
@@ -155,8 +155,8 @@ async def get_summaries_of_urls(url:str) -> dict:
     return summaries
 
 # This function takes a dictionary from get_summaries_of_urls and returns a string in nice format to passed into another prompt
-async def get_formatted_summaries(url: str) -> str:
-    summaries = await get_summaries_of_urls(url)
+async def get_formatted_summaries(url: str,api_key:str) -> str:
+    summaries = await get_summaries_of_urls(url,api_key)
     formatted_output = []
     for index, (url, summary) in enumerate(summaries.items(), 1):
         article_block = f"""**Article: {index}**
@@ -170,13 +170,13 @@ Content: {summary}
     return "\n".join(formatted_output)
 
 # This function takes a url and returns all the articles depicted in the url, url might be the techrunch main page.
-async def extract_all_articles_from_page(url:str) -> dict:
+async def extract_all_articles_from_page(url:str,api_key) -> dict:
     async with AsyncWebCrawler(verbose=False, log_level=logging.ERROR) as crawler:
         result = await crawler.arun(
             url=url,
             extraction_strategy=LLMExtractionStrategy(
                 provider='openai/gpt-4o-mini',
-                api_token=os.getenv('OPENAI_API_KEY'),
+                api_token=api_key,
                 schema=UrlSchema.model_json_schema(),
                 extraction_type='schema',
                 instruction="""You are analyzing a webpage that contains multiple articles (like a blog index or news homepage).

@@ -7,7 +7,7 @@ from trash.prompt_templates import *
 import os
 from typing import Dict, Optional
 from app.database.database import *
-from app.database.models import Prompt,Profile,OnlineArticles
+from app.database.models import Prompt,Profile,OnlineArticles,User
 from langchain.prompts import PromptTemplate
 from app.crawl4ai import *
 import time
@@ -19,6 +19,7 @@ import logging
 import urllib3
 import warnings
 from app.api.prompt_operations import get_prompt
+from cryptography.fernet import Fernet
 
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 logging.getLogger('httpx').setLevel(logging.ERROR)
@@ -33,8 +34,11 @@ warnings.filterwarnings('ignore', category=urllib3.exceptions.NotOpenSSLWarning)
 # This class can take a url and write a tweet.
 class ContentProcessor:
     # Initialize the class with LLM, it takes the API key from an environment variable.
-    def __init__(self):
-        self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o-mini')
+    def __init__(self,user):
+        self.user = user
+        fernet = Fernet(os.environ['ENCRYPTION_KEY'].encode())
+        self.decripted_api_key = fernet.decrypt(self.user.openai_api_key).decode()
+        self.llm = ChatOpenAI(openai_api_key=self.decripted_api_key, model_name='gpt-4o-mini')
         self.traces_dir = Path("traces")
         self.traces_dir.mkdir(exist_ok=True)
 
@@ -50,21 +54,21 @@ class ContentProcessor:
             json.dump(trace_data,f,indent=2)
             
     # This method fetches the prompt template of a prompt in the database and takes its ID as an arguement.
-    def get_prompt(self, id: int) -> Optional[str]:
-        db = SessionLocal()
-        try:
-            prompt = db.query(Prompt).filter(Prompt.id == id).first()
-            print(f"Fetched the template from the database and the template is :{prompt.template[:50]}")
-            return prompt.template if prompt else None
-        except Exception as e:
-            print(f"Error fetching prompt from database {str(e)}")
-            return None
-        finally:
-            db.close()
+    # def get_prompt(self, id: int) -> Optional[str]:
+    #     db = SessionLocal()
+    #     try:
+    #         prompt = db.query(Prompt).filter(Prompt.id == id).first()
+    #         print(f"Fetched the template from the database and the template is :{prompt.template[:50]}")
+    #         return prompt.template if prompt else None
+    #     except Exception as e:
+    #         print(f"Error fetching prompt from database {str(e)}")
+    #         return None
+    #     finally:
+    #         db.close()
 
     # This method creates a chain with the proper chain template so that we can insert the primary and secondary articles.
     def setup_chain(self):
-        self.prompt = self.get_prompt(1)
+        self.prompt = get_prompt(1,self.user.id)
         self.prompt_template = PromptTemplate(template=self.prompt,input_variables=["primary","secondary"])
         self.post_chain = self.prompt_template | self.llm
 
@@ -87,7 +91,7 @@ class ContentProcessor:
         try:
             # Extract the article
             step_start = time.time()
-            self.article = await extract_article_content(url)
+            self.article = await extract_article_content(url,self.decripted_api_key)
             trace["steps"].append({
                 "name": "extract_article",
                 "duration": time.time() - step_start,
@@ -104,7 +108,7 @@ class ContentProcessor:
 
             # Get all the secondary articles in a long string
             step_start = time.time()
-            self.secondary_articles = await get_formatted_summaries(url)
+            self.secondary_articles = await get_formatted_summaries(url,self.decripted_api_key)
             trace["steps"].append({
                 "name": "get_secondary_articles",
                 "duration": time.time() - step_start,
@@ -164,16 +168,21 @@ class ContentProcessor:
     
 # This class is handling the comparison of the article to the profile of the user
 class ProfileComparer:
-    def __init__(self,user_id:int) -> None:
-        self.llm = ChatOpenAI(openai_api_key=os.getenv('OPENAI_API_KEY'), model_name='gpt-4o-mini', temperature=0)
-        self.user_id = user_id
+    def __init__(self,user) -> None:
+        self.user = user
+        fernet = Fernet(os.environ['ENCRYPTION_KEY'].encode())
+        self.decripted_api_key = fernet.decrypt(self.user.openai_api_key).decode()
+        self.llm = ChatOpenAI(openai_api_key=self.decripted_api_key, model_name='gpt-4o-mini',temperature=0)
+        self.user_id = user.id
         self.setup_comparison_chain()
     
     # This method returns the interests of a profile, gets an ID of the profile
-    def _get_profile_interests(self, id:int):
-        db= SessionLocal()
+    def _get_profile_interests(self, user_id: int):
+        db = SessionLocal()
         try:
-            profile = db.query(Profile).filter(Profile.id == id).first()
+            profile = db.query(Profile).filter(Profile.user_id == user_id).first()
+            if not profile:
+                raise ValueError(f"No profile found for user_id: {user_id}")
             print(f"Got the profile interests")
             return profile.interests_description
         except Exception as e:
@@ -187,10 +196,10 @@ class ProfileComparer:
         self.comparison_prompt_template = PromptTemplate(template=self.prompt,input_variables=["profile","article"])
         self.comparison_chain = self.comparison_prompt_template | self.llm
 
-    async def compare_article_to_profile(self, article_url: str, id: int) -> Dict:
+    async def compare_article_to_profile(self, article_url: str, user_id: int) -> Dict:
         try:
-            profile_interests = self._get_profile_interests(id)
-            article_content = await extract_article_content(article_url)
+            profile_interests = self._get_profile_interests(user_id)
+            article_content = await extract_article_content(article_url,self.decripted_api_key)
             print(f"Profile interests: {profile_interests[:50]}")
             print(f"Article content preview: {article_content[:50]}...")
             result = self.comparison_chain.invoke({
@@ -202,7 +211,7 @@ class ProfileComparer:
             return {
                 "status": "success",
                 "url": article_url,
-                "profile_id": id,
+                "user_id": user_id,
                 "llm_response": llm_response
             }
             
@@ -217,10 +226,12 @@ class ProfileComparer:
 
 # This class is handling all the blogs and the extraction of the articles from them.
 class BlogHandler:
-    def __init__(self,user_id:int) -> None:
-        self.user_id = user_id
-        self.content_processor = ContentProcessor()
-        self.profile_comparer = ProfileComparer(user_id=self.user_id)
+    def __init__(self,user) -> None:
+        self.user = user
+        fernet = Fernet(os.environ['ENCRYPTION_KEY'].encode())
+        self.decripted_api_key = fernet.decrypt(self.user.openai_api_key).decode()
+        self.content_processor = ContentProcessor(self.user)
+        self.profile_comparer = ProfileComparer(self.user)
     
     # This method takes a url (a blog url) and a profile, it returns a list of dictionaries with all the relevant articles of the blog and wheather they fit the profile or not. 
     # It also stores the results in the database
@@ -228,20 +239,23 @@ class BlogHandler:
         db = SessionLocal()
         try:
             # Get all articles from the blog
-            articles_dict = await extract_all_articles_from_page(blog_url)
+            print('Extracting all the articles from the page')
+            articles_dict = await extract_all_articles_from_page(blog_url,self.decripted_api_key)
             # Get the user's profile
+            print('Done extracting, now creating a batch of tasks and running them simultanously')
             profile = db.query(Profile).filter(Profile.user_id == user_id).first()
             if not profile:
                 raise ValueError(f"No profile found for user_id: {user_id}")
             
             # Create tasks for all article comparisons
             comparison_tasks = [
-                self.profile_comparer.compare_article_to_profile(url, profile.id)
+                self.profile_comparer.compare_article_to_profile(url, self.user.id)
                 for url in articles_dict.keys()
             ]
 
             # Run all comparisons concurrently
             comparison_results = await asyncio.gather(*comparison_tasks)
+            print('Done running the tasks, now shaping everything nicely')
 
             # Process Results and Store in Database
             results = []
@@ -259,7 +273,7 @@ class BlogHandler:
                 
                 # Create new OnlineArticles entry
                 new_article = OnlineArticles(
-                    user_id=user_id,
+                    user_id=self.user.id,
                     url=url,
                     title=title,
                     source_blog=blog_url,
@@ -273,6 +287,7 @@ class BlogHandler:
                     "fits_profile": fits_profile
                 }
                 results.append(article_result)
+            print('finished shaping, now commiting')
             
             # Commit all database changes
             db.commit()

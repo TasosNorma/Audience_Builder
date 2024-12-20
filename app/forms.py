@@ -17,6 +17,13 @@ class ProfileForm(FlaskForm):
     interests_description = TextAreaField('Interests Description', validators=[DataRequired()])
     submit = SubmitField('Save Changes')
 
+class SetupProfileForm(FlaskForm):
+    full_name = StringField('Name',validators=[DataRequired()])
+    bio = TextAreaField('Bio',validators=[DataRequired()])
+    interests_description = TextAreaField('Interests Description', validators=[DataRequired()])
+    openai_api_key = TextAreaField('Open AI API key')
+    submit = SubmitField('Save Changes')
+
 class ArticleCompareForm(FlaskForm):
     article_url = StringField('Article URL', validators=[DataRequired(), URL()])
     submit = SubmitField('Compare with Profile')
@@ -41,3 +48,7 @@ class RegistrationForm(FlaskForm):
         EqualTo('password', message='Passwords must match')
     ])
     submit = SubmitField('Register')
+
+class SettingsForm(FlaskForm):
+    openai_api_key = StringField('OpenAI API Key', validators=[DataRequired()])
+    submit = SubmitField('Update Settings')
