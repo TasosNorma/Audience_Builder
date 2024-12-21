@@ -14,7 +14,7 @@ class Prompt(Base):
     user_id = Column(Integer,ForeignKey('users.id'), nullable=False)
     description = Column(Text, nullable=True)
     template = Column(Text, nullable=False)
-    input_variables = Column(Text, nullable=False)  # Stored as JSON string
+    input_variables = Column(Text, nullable=True)  # Stored as JSON string
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), 
@@ -27,7 +27,7 @@ class Profile(Base):
     # Primary Data
     id = Column(Integer,primary_key=True)
     user_id = Column(Integer,ForeignKey('users.id'),nullable=False)
-    username = Column(String(50), unique=True, nullable=False)
+    username = Column(String(50), unique=True, nullable=True)
     full_name = Column(String(50),nullable=True)
     bio = Column(Text, nullable=True) # General description of the user
     interests_description = Column(Text,nullable=False) # Detailed description of the user
@@ -55,9 +55,9 @@ class User(Base,UserMixin):
 
     id = Column(Integer,primary_key=True)
     email = Column(String(120), unique=True, nullable=False)
-    password_hash = Column(String(256), nullable=False)
+    password_hash = Column(String(1024), nullable=False)
     is_active = Column(Boolean, default=True)
-    openai_api_key = Column(String(256), nullable=True)
+    openai_api_key = Column(String(1024), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     profile = relationship('Profile',back_populates='user', uselist=False)
     prompts = relationship('Prompt',back_populates='user')
