@@ -17,9 +17,15 @@ fernet = Fernet(os.environ['ENCRYPTION_KEY'].encode())
 
 @bp.before_request
 def check_onboarding():
-    # We only need to check if the current page isn't the onboarding page
-    if not current_user.is_onboarded and request.endpoint != 'base.onboarding':
-        return redirect(url_for('base.onboarding'))
+    # We open a new database connection to give the flask-login the info about the profile of the user that are needed for the profile section of the sidebar
+    if current_user.is_authenticated:
+        db = SessionLocal()        
+        try:
+            db.add(current_user)  
+            if not current_user.is_onboarded and request.endpoint != 'base.onboarding':
+                return redirect(url_for('base.onboarding'))
+        finally:
+            db.close()
 
 @bp.route('/home',methods=['GET','POST'])
 @login_required
