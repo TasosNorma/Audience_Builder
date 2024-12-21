@@ -10,6 +10,7 @@ from ..api.article_operations import get_user_articles
 import logging
 from cryptography.fernet import Fernet
 from ..api.prompt_operations import get_prompt
+from asgiref.sync import async_to_sync
 
 
 bp = Blueprint('base', __name__)
@@ -36,7 +37,7 @@ def base():
     if form.validate_on_submit():
         try:
             processor = ContentProcessor(current_user)
-            result = asyncio.run(processor.process_url(form.url.data))
+            result = async_to_sync(processor.process_url(form.url.data))
         except Exception as e:
             result = {
                 "status":"error",

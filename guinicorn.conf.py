@@ -2,7 +2,7 @@
 workers = 2
 
 # Use async worker to handle concurrent requests efficiently
-worker_class = 'sync'
+worker_class = 'uvicorn.workers.UvicornWorker'
 
 # Bind to all network interfaces
 bind = "0.0.0.0:10000"
