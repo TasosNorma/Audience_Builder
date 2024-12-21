@@ -20,5 +20,3 @@ typing_extensions==4.12.2
 pydantic==2.10.1
 pydantic_core==2.27.1
 urllib3==2.2.3
-streamlit==1.40.2
-pandas==2.2.3
