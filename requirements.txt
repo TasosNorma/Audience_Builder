@@ -21,3 +21,4 @@ pydantic==2.10.1
 pydantic_core==2.27.1
 urllib3==2.2.3
 gunicorn==21.2.0
+asgiref==3.7.2
