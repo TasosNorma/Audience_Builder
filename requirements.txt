@@ -10,7 +10,6 @@ anyio==4.6.2.post1
 asgiref==3.8.1
 async-timeout==4.0.3
 attrs==24.2.0
--e git+https://github.com/TasosNorma/Audience_Builder.git@fe4ebd78ea1b572880ebda89715f0c3d37295aad#egg=Audience_builder
 babel==2.16.0
 beautifulsoup4==4.12.3
 blinker==1.9.0
