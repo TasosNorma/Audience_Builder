@@ -3,7 +3,6 @@ from langchain.chains.base import Chain
 from langchain.schema.runnable import RunnableBranch,RunnablePassthrough
 from langchain.output_parsers import ResponseSchema, StructuredOutputParser
 from langchain_openai import ChatOpenAI
-from trash.prompt_templates import *
 import os
 from typing import Dict, Optional
 from app.database.database import *
