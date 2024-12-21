@@ -11,5 +11,12 @@
         "src": "/(.*)",
         "dest": "run.py"
       }
-    ]
+    ],
+    "env": {
+        "DATABASE_URL": "@database_url",
+        "SUPABASE_URL": "@supabase_url",
+        "SUPABASE_KEY": "@supabase_key",
+        "SECRET_KEY": "@secret_key",
+        "ENCRYPTION_KEY": "@encryption_key"
+    }
   }
