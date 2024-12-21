@@ -49,13 +49,17 @@ def base():
 @login_required
 def prompts():
     db = SessionLocal()
-    prompt = db.query(Prompt).filter(Prompt.user_id == current_user.id, Prompt.type == 1).first()
-
-    # Create a prompt object that will be placed inside the form for a placeholder in order to showcase only the relevant parts of the prompt
-    modified_prompt = prompt
-    parts = modified_prompt.template.split("### Suffix_")
-    editable_template = parts[0] if len(parts) >1 else ''
-    modified_prompt.template = editable_template
+    try:
+        prompt = db.query(Prompt).filter(Prompt.user_id == current_user.id, Prompt.type == 1).first()
+        # Create a prompt object that will be placed inside the form for a placeholder in order to showcase only the relevant parts of the prompt
+        modified_prompt = prompt
+        parts = modified_prompt.template.split("### Suffix_")
+        editable_template = parts[0] if len(parts) >1 else ''
+        modified_prompt.template = editable_template
+    except Exception as e:
+        logging.error(f"Error in prompts route: {str(e)}")
+        flash(f'An error occurred: {str(e)}', 'error')
+        return redirect(url_for('base.base'))
 
     if modified_prompt:
         form = PromptForm(obj=modified_prompt)
@@ -80,7 +84,7 @@ def prompts():
    
 @bp.route('/profile', methods = ['GET','POST'])
 @login_required
-async def profile():
+def profile():
     db = SessionLocal()
     profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
     
@@ -95,7 +99,7 @@ async def profile():
 
 @bp.route('/profile/update', methods=['POST'])
 @login_required
-async def update_profile():
+def update_profile():
     db = SessionLocal()
     profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
     profile_form = ProfileForm(obj=profile)
