@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY")
     ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days
+    ALGORITHM: str = "HS256"
+    HASH_METHOD: str = "pbkdf2:sha256"
 
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL")

@@ -23,3 +23,5 @@ urllib3==2.2.3
 gunicorn==21.2.0
 asgiref==3.7.2
 fastapi
+"python-jose[cryptography]">=3.3.0
+python-multipart
