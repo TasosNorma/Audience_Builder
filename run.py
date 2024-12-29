@@ -1,5 +1,4 @@
 from app import create_app
-from app.warnings_config import * 
 import os
 app = create_app()
 

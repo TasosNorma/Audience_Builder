@@ -3,10 +3,10 @@ __pycache__/
 .env
 venv/
 .vscode/
-trash
-seed.py
 migrations
 instance
-alembic.ini
-gunicorn.conf
-gunicorn_dev.conf
+alembic
+gunicorn
+gunicorn_dev
+tests
+traces
