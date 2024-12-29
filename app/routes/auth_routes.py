@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, flash, redirect, url_for
 from flask_login import login_user, logout_user, login_required, current_user
-from ..forms import LoginForm, RegistrationForm
+from ..core.forms import LoginForm, RegistrationForm
 from ..database.database import SessionLocal
 from ..database.models import User
 from ..api.onboarding_operations import create_new_user

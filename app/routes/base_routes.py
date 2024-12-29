@@ -1,8 +1,8 @@
 from flask import Flask, render_template, Blueprint, redirect, flash, url_for, request
 from flask_login import login_required, current_user
 import os
-from ..forms import UrlSubmit, PromptForm, ProfileForm, ArticleCompareForm, BlogForm, SetupProfileForm,SettingsForm
-from ..content_processor import ContentProcessor, ProfileComparer, BlogHandler
+from ..core.forms import UrlSubmit, PromptForm, SetupProfileForm,SettingsForm
+from ..core.content_processor import ContentProcessor
 from ..database.database import SessionLocal
 from ..database.models import Prompt, Profile, User
 import asyncio
@@ -83,100 +83,6 @@ def prompts():
     db.close()
     return render_template('prompts.html', form=form)
    
-@bp.route('/profile', methods = ['GET','POST'])
-@login_required
-def profile():
-    db = SessionLocal()
-    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
-    
-    profile_form = ProfileForm(obj=profile) if profile else ProfileForm()
-    article_comparison_form = ArticleCompareForm()
-    comparison_result = None
-    db.close()
-    return render_template('profile.html', 
-                        profile_form=profile_form, 
-                        article_comparison_form=article_comparison_form,
-                        comparison_result=comparison_result)
-
-@bp.route('/profile/update', methods=['POST'])
-@login_required
-def update_profile():
-    db = SessionLocal()
-    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
-    profile_form = ProfileForm(obj=profile)
-    if profile_form.validate_on_submit():
-        try:
-            profile.full_name = profile_form.full_name.data
-            profile.bio = profile_form.bio.data
-            profile.interests_description = profile_form.interests_description.data
-            profile.user_id = current_user.id
-            db.commit()
-            flash('Profile updated successfully','success')
-            return redirect(url_for('base.profile'))
-        except Exception as e:
-            db.rollback()
-            flash(f'Error updating profile {str(e)}') 
-    db.close()
-    return redirect(url_for('base.profile'))
-    
-@bp.route('/profile/compare',methods=['POST'])
-@login_required
-async def compare_article():
-    logging.getLogger().setLevel(logging.ERROR)
-    db = SessionLocal()
-    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
-    article_comparison_form = ArticleCompareForm()
-    comparison_result = None
-    if article_comparison_form.validate_on_submit():
-        try:
-            comparer = ProfileComparer(current_user)
-            comparison_result = await comparer.compare_article_to_profile(
-                article_url=article_comparison_form.article_url.data,
-                user_id=current_user.id
-            )
-            flash('Article comparison completed', 'success')
-        except Exception as e:
-            flash(f'Error comparing the articles {str(e)}')
-    db.close()
-    return render_template('profile.html', 
-                         profile_form=ProfileForm(obj=profile), 
-                         article_comparison_form=article_comparison_form,
-                         comparison_result=comparison_result)
-
-@bp.route('/blogs' ,methods=['GET','POST'])
-@login_required
-async def blogs():
-    form = BlogForm()
-    result = None
-
-    if form.validate_on_submit():
-        try:
-            print('Setting up blog handler')
-            blog_handler = BlogHandler(current_user)
-            print('Starting the processing and storing of articles')
-            result = await blog_handler.process_and_store_articles(form.url.data,current_user.id)
-            print('articles processed')
-        except Exception as e:
-                result = {
-                "status": "error",
-                "message": f"An error occurred: {str(e)}"
-                }
-    return render_template('blogs.html',form=form,result=result)
-
-@bp.route('/processed-articles', methods=['GET'])
-@login_required
-def processed_articles():
-    db = SessionLocal()
-    try:
-        articles = get_user_articles(db,current_user.id)
-        return render_template('processed_articles.html', 
-                             articles=articles)
-    except Exception as e:
-        flash(f'Error loading articles: {str(e)}', 'error')
-        return redirect(url_for('base.base'))
-    finally:
-        db.close()
-
 @bp.route('/onboarding',methods=['GET','POST'])
 @login_required
 def onboarding():
