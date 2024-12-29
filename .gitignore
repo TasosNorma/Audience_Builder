@@ -8,3 +8,5 @@ seed.py
 migrations
 instance
 alembic.ini
+gunicorn.conf
+gunicorn_dev.conf
