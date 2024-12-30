@@ -36,20 +36,6 @@ class Profile(Base):
                        onupdate=lambda: datetime.now(timezone.utc))
     user = relationship('User',back_populates='profile')
     
-class OnlineArticles(Base):
-    __tablename__ = 'online_articles'
-
-    id = Column(Integer,primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    url = Column(String(500),nullable=False)
-    title = Column(Text,nullable=True)
-    source_blog = Column(String(200), nullable=True)
-    profile_fit = Column(Boolean,nullable=True) # Does it fit the user profile or not?
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), 
-                       onupdate=lambda: datetime.now(timezone.utc))
-    user = relationship('User', back_populates='online_articles')
-
 class User(Base,UserMixin):
     __tablename__ = 'users'
 
@@ -61,7 +47,6 @@ class User(Base,UserMixin):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     profile = relationship('Profile',back_populates='user', uselist=False)
     prompts = relationship('Prompt',back_populates='user')
-    online_articles = relationship('OnlineArticles', back_populates='user')
     is_onboarded = Column(Boolean,default=False,nullable=True)
         
     def set_password(self, password, method='pbkdf2:sha256'):

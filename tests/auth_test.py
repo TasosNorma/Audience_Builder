@@ -7,7 +7,7 @@ def test_create_user():
     
     # Create a test user
     test_user = User(
-        email='test@example.com',
+        email='1@example.com',
         is_active=True  # Explicitly set is_active
     )
     test_user.set_password('12345678')
@@ -16,7 +16,7 @@ def test_create_user():
         db.add(test_user)
         db.commit()
         print("✅ User created successfully!")
-        user = db.query(User).filter_by(email='test@example.com').first()
+        user = db.query(User).filter_by(email='1@example.com').first()
         if user and user.check_password('12345678'):
             print("✅ Password verification works!")
             print(f"✅ User active status: {user.is_active}")

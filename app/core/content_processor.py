@@ -6,7 +6,7 @@ from langchain_openai import ChatOpenAI
 import os
 from typing import Dict, Optional
 from app.database.database import *
-from app.database.models import Prompt,Profile,OnlineArticles,User
+from app.database.models import Prompt,Profile,User
 from langchain.prompts import PromptTemplate
 from .crawl4ai import *
 import time
@@ -19,6 +19,7 @@ import urllib3
 import warnings
 from app.api.prompt_operations import get_prompt
 from cryptography.fernet import Fernet
+
 
 # This class can take a url and write a tweet.
 class ContentProcessor:
@@ -155,3 +156,154 @@ class ContentProcessor:
     
         # Setup a chain that will take only the primary article as input varibles and will create a chain, the purpose is for tests
     
+
+# This class is the Synchronous content processor
+class SyncContentProcessor:
+
+    def __init__(self,user):
+        self.user = user
+        fernet = Fernet(os.environ['ENCRYPTION_KEY'].encode())
+        self.decripted_api_key = fernet.decrypt(self.user.openai_api_key).decode()
+        self.llm = ChatOpenAI(openai_api_key=self.decripted_api_key, model_name='gpt-4o-mini')
+        self.crawler = Crawler(self.decripted_api_key)
+
+    # This method creates a chain with the proper chain template so that we can insert the primary and secondary articles.
+    def setup_chain(self):
+        self.prompt = get_prompt(1,self.user.id)
+        self.prompt_template = PromptTemplate(template=self.prompt,input_variables=["primary","secondary"])
+        self.post_chain = self.prompt_template | self.llm
+
+    # This method takes the string of the final post and breaks it down to sub-tweets.
+    @staticmethod
+    def _parse_tweets(social_post: str) -> list:
+        content = social_post.content if hasattr(social_post, 'content') else social_post
+        return [tweet.strip() for tweet in content.split('\n\n') 
+                if tweet.strip() and not tweet.isspace()]
+
+    # This method takes one URL and returns a dictionary that inside has the list of tweets.
+    def process_url(self, url:str) -> Optional[Dict]:
+        try:
+            # Get the article
+            try:
+                self.article = self.crawler.extract_article_content(url)
+            except Exception as e:
+                print(f"Error extracting article content: {str(e)}")
+                raise
+            # Setup the chain
+            try:
+                print('Setting up the chains')
+                self.setup_chain()
+            except Exception as e:
+                print(f'Error setting up the chains : {str(e)}')
+                raise
+
+            # Setting Secondary articles to None for now
+            self.secondary_articles = "None"
+            try:
+                self.result = self.post_chain.invoke({
+                    "primary": self.article,
+                    "secondary": self.secondary_articles
+                })
+            except Exception as e:
+                print(f"Error invoking post chain: {str(e)}")
+                raise
+
+            try:
+                self.tweets = self._parse_tweets(self.result)
+            except Exception as e:
+                print(f"Error parsing tweets: {str(e)}")
+                raise
+
+            self.result = {
+                "status": "success",
+                "tweets": self.tweets,
+                "tweet_count": len(self.tweets),
+                "url": url
+            }
+            return self.result
+        except Exception as e:
+            return {
+            "status": "error",
+            "message": f"An error occurred: {str(e)}",
+            "url": url
+            }
+
+
+# This class is the Synchronous content processor
+class SyncAsyncContentProcessor:
+
+    def __init__(self,user):
+        self.user = user
+        fernet = Fernet(os.environ['ENCRYPTION_KEY'].encode())
+        self.decripted_api_key = fernet.decrypt(self.user.openai_api_key).decode()
+        self.llm = ChatOpenAI(openai_api_key=self.decripted_api_key, model_name='gpt-4o-mini')
+
+    # This method creates a chain with the proper chain template so that we can insert the primary and secondary articles.
+    def setup_chain(self):
+        self.prompt = get_prompt(1,self.user.id)
+        self.prompt_template = PromptTemplate(template=self.prompt,input_variables=["primary","secondary"])
+        self.post_chain = self.prompt_template | self.llm
+
+    # This method takes the string of the final post and breaks it down to sub-tweets.
+    @staticmethod
+    def _parse_tweets(social_post: str) -> list:
+        content = social_post.content if hasattr(social_post, 'content') else social_post
+        return [tweet.strip() for tweet in content.split('\n\n') 
+                if tweet.strip() and not tweet.isspace()]
+
+    # This method takes one URL and returns a dictionary that inside has the list of tweets.
+    def process_url(self, url:str) -> Optional[Dict]:
+        try:
+            # Get the article
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    self.article = loop.run_until_complete(extract_article_content(url,self.decripted_api_key))
+                except Exception as e:
+                    print(f"Error getting the article content with async operation.{str(e)}")
+            except Exception as e:
+                print(f"Error extracting article content: {str(e)}")
+                raise
+            finally:
+                loop.close()
+            # Setup the chain
+            try:
+                print('Setting up the chains')
+                self.setup_chain()
+            except Exception as e:
+                print(f'Error setting up the chains : {str(e)}')
+                raise
+
+            # Setting Secondary articles to None for now
+            self.secondary_articles = "None"
+            try:
+                self.result = self.post_chain.invoke({
+                    "primary": self.article,
+                    "secondary": self.secondary_articles
+                })
+            except Exception as e:
+                print(f"Error invoking post chain: {str(e)}")
+                raise
+
+            try:
+                self.tweets = self._parse_tweets(self.result)
+            except Exception as e:
+                print(f"Error parsing tweets: {str(e)}")
+                raise
+
+            self.result = {
+                "status": "success",
+                "tweets": self.tweets,
+                "tweet_count": len(self.tweets),
+                "url": url
+            }
+            return self.result
+        except Exception as e:
+            return {
+            "status": "error",
+            "message": f"An error occurred: {str(e)}",
+            "url": url
+            }
+
+

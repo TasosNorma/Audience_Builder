@@ -2,11 +2,10 @@ from flask import Flask, render_template, Blueprint, redirect, flash, url_for, r
 from flask_login import login_required, current_user
 import os
 from ..core.forms import UrlSubmit, PromptForm, SetupProfileForm,SettingsForm
-from ..core.content_processor import ContentProcessor
+from ..core.content_processor import ContentProcessor,SyncContentProcessor, SyncAsyncContentProcessor
 from ..database.database import SessionLocal
 from ..database.models import Prompt, Profile, User
 import asyncio
-from ..api.article_operations import get_user_articles
 import logging
 from cryptography.fernet import Fernet
 from ..api.prompt_operations import get_prompt
@@ -36,8 +35,8 @@ def base():
 
     if form.validate_on_submit():
         try:
-            processor = ContentProcessor(current_user)
-            result = async_to_sync(processor.process_url(form.url.data))
+            processor = SyncAsyncContentProcessor(current_user)
+            result = processor.process_url(form.url.data)
         except Exception as e:
             result = {
                 "status":"error",
@@ -103,7 +102,8 @@ def onboarding():
             )
             user = db.query(User).get(current_user.id)
             user.is_onboarded = True
-            user.openai_api_key = fernet.encrypt(form.openai_api_key.data.encode())
+            encrypted_api_key = fernet.encrypt(form.openai_api_key.data.encode())
+            user.openai_api_key = encrypted_api_key.decode()
             db.add(profile)
             db.commit()
 
@@ -111,8 +111,7 @@ def onboarding():
             return redirect(url_for('base.base'))
         except Exception as e:
             db.rollback()
-            flash('Error creating the profile','error')
-            print(f'Error creating the profile {str(e)} ')
+            flash(f'Error creating the profile{str(e)}','error')
         finally:
             db.close()
     

@@ -110,4 +110,11 @@ def create_new_user(email:str,password:str)-> Optional[str]:
         db.close()
 
         
-    
+
+if __name__ == "__main__":
+    # Set default prompt for user 13
+        try:
+            set_default_prompt(user_id=13)
+        except Exception as e:
+            print(f"Error setting default prompt for user 13: {str(e)}")
+

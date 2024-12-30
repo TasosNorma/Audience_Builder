@@ -1,23 +1,13 @@
 import asyncio
 import os
 import json
-from crawl4ai import AsyncWebCrawler
-from crawl4ai.extraction_strategy import LLMExtractionStrategy
+from crawl4ai import AsyncWebCrawler, WebCrawler
+from crawl4ai.extraction_strategy import LLMExtractionStrategy 
 from pydantic import BaseModel, Field
 from urllib.parse import urlparse
 import logging
 import warnings
 import urllib3
-logging.getLogger().setLevel(logging.ERROR)
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
-logging.getLogger('urllib3').setLevel(logging.ERROR)
-logging.getLogger('crawl4ai').setLevel(logging.ERROR)
-logging.getLogger('httpx').setLevel(logging.ERROR)
-logging.getLogger('crawl4ai.extraction_strategy').setLevel(logging.ERROR)
-logging.getLogger('crawl4ai.extraction_strategy.llm').setLevel(logging.ERROR)
-logging.getLogger('crawl4ai.crawler').setLevel(logging.ERROR)
-warnings.filterwarnings('ignore', category=urllib3.exceptions.NotOpenSSLWarning)
-
 # This Class is to help the URL extraction function
 class UrlSchema(BaseModel):
     title: str = Field(..., description='The title of the link, indicative')
@@ -25,7 +15,6 @@ class UrlSchema(BaseModel):
 
 # This function takes a url and tries to re-create the article of the URL as realistically as possible.
 async def extract_article_content(url,api_key):
-    logging.getLogger('crawl4ai.extraction_strategy.llm').setLevel(logging.ERROR)
     async with AsyncWebCrawler(verbose=False, log_level=logging.ERROR, silent=True) as crawler:
         print("Trying to extract the content from the article")
         result = await crawler.arun(
@@ -233,3 +222,61 @@ async def main():
 # Example usage:
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+class Crawler:
+    def __init__(self,api_key) -> None:
+        self.api_key = api_key
+        print("Initializing WebCrawler...")
+        crawler_strategy = LLMExtractionStrategy(verbose=True)
+        self.crawler = WebCrawler(crawler_strategy=crawler_strategy, verbose=True)
+        print("WebCrawler initialized, starting warmup...")
+        try:
+            self.crawler.warmup()
+            print("Warmup completed successfully")
+        except Exception as e:
+            print(f"Error during crawler warmup: {str(e)}")
+            raise
+
+    # This function takes a url and tries to re-create the article of the URL as realistically as possible. 
+    def extract_article_content(self,url):
+        try:
+            print("Trying to extract the content from the article")
+            result = self.crawler.run(
+                url=url,
+            word_count_threshold=5,
+            extraction_strategy=LLMExtractionStrategy(
+                provider='openai/gpt-4o-mini',
+                api_token=self.api_key,
+                instruction=""" 
+You are an expert at reading raw webpage markup and reconstructing the original article text. You will be given the complete HTML markup of a webpage that contains an article. Your task is to produce the clean article text in a well-structured, hierarchical format, reflecting the original headings and subheadings as closely as possible.
+# Instructions:
+* Article Content Only: Reproduce only the main article text. Omit any content not integral to the article (e.g., ads, navigation menus, related posts, social media links, comments).
+* No Additional Commentary: Do not include your own explanations or remarks. Present only what the original author wrote.
+* Don't Repeat Yourself: Do not repeat yourself, if you've said something once, do not say it again at the end of the article
+* Clean and Hierarchical Structure:
+* Use a clear hierarchy for titles and headings (e.g., # for the main title, ## for subheadings, etc.)
+* Maintain paragraph structure and any lists the author included.
+* Do not restate content unnecessarily. If something appears once, do not repeat it unless it was repeated in the original text.
+* No Non-textual Elements: Exclude images, URLs, and references that are not essential for understanding the article's core message.
+Your final output should be a neatly organized version of the article's textual content, suitable for further processing or summarization.
+                """
+            ),
+            bypass_cache=True,
+            silent=True
+            )
+        except Exception as e:
+            print(f"Error extracting content from article: {str(e)}")
+            raise
+        try:
+            content_blocks = json.loads(result.extracted_content)
+            formatted_article = []
+            for block in content_blocks:
+                if 'content' in block:
+                    formatted_article.extend(block['content'])
+            
+            article = "\n\n".join(formatted_article)
+        except Exception as e:
+            print(f"Error formatting article content: {str(e)}")
+            raise
+        return article
