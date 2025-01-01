@@ -10,6 +10,7 @@ import logging
 from cryptography.fernet import Fernet
 from ..api.prompt_operations import get_prompt
 from asgiref.sync import async_to_sync
+from celery_worker.tasks import process_url_task
 
 
 bp = Blueprint('base', __name__)
@@ -35,8 +36,13 @@ def base():
 
     if form.validate_on_submit():
         try:
-            processor = SyncAsyncContentProcessor(current_user)
-            result = processor.process_url(form.url.data)
+            task = process_url_task.delay(form.url.data, current_user.id)
+            result = {
+                "status": "processing",
+                "message": "Your request is being processed. Please check back in a few moments.",
+                "task_id": task.id
+            }
+            flash('Processing started. Results will be available shortly.', 'info')
         except Exception as e:
             result = {
                 "status":"error",

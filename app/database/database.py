@@ -21,7 +21,7 @@ Base = declarative_base()
 
 def init_db():
     # Import models here to ensure they are known to SQLAlchemy
-    from .models import Prompt, User, Profile, OnlineArticles
+    from .models import Prompt, User, Profile, ProcessingResult
     Base.metadata.create_all(bind=engine)
 
 def get_db():

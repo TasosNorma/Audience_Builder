@@ -55,3 +55,17 @@ class User(Base,UserMixin):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+class ProcessingResult(Base):
+    __tablename__ = 'processing_results'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    url = Column(String(2048), nullable=False)
+    status = Column(String(50), nullable=False)
+    tweets = Column(Text, nullable=True)  # JSON string of tweets
+    tweet_count = Column(Integer, default=0)
+    error_message = Column(Text, nullable=True)
+    task_id = Column(String(50), nullable=True)
+    created_at_utc = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship('User', backref='processing_results')
