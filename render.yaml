@@ -4,9 +4,25 @@ services:
     env: python
     buildCommand: pip install -r requirements.txt && pip install playwright && playwright install chromium 
     startCommand: gunicorn app:app
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: celery-redis
+          property: connectionString
 
   - type: worker
     name: celery-worker
     env: python
     buildCommand: pip install -r requirements.txt && pip install psycopg2-binary && pip install playwright && playwright install chromium
     startCommand: celery -A celery_worker.celery_app worker --loglevel=info
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: celery-redis
+          property: connectionString
+
+  - type: redis
+    name: celery-redis
+    ipAllowList: []  # only allow internal connections
