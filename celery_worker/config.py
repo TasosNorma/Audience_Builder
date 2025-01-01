@@ -3,7 +3,7 @@ from celery import Celery
 from kombu import Queue, Exchange
 
 CELERY_BROKER_URL = os.getenv('REDIS_URL')
-CELERY_RESULT_BACKEND = os.getenv('SUPABASE_URL')
+CELERY_RESULT_BACKEND = os.getenv('DATABASE_URL')
 
 celery_app = Celery(
     'content_processor',     # Name of your application
