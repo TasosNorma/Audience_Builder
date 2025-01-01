@@ -8,5 +8,5 @@ services:
   - type: worker
     name: celery-worker
     env: python
-    buildCommand: pip install -r requirements.txt && pip install playwright && playwright install chromium
+    buildCommand: pip install -r requirements.txt && pip install psycopg2-binary && pip install playwright && playwright install chromium
     startCommand: celery -A celery_worker.celery_app worker --loglevel=info
