@@ -1,12 +1,11 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-SQLALCHEMY_DATABASE_URL = f"sqlite:////Users/anastasiosanastasiadis/Desktop/coding/build_audience/instance/prompts.db"
 DATABASE_URL = os.environ.get('DATABASE_URL')
 # Create engine
 engine = create_engine(
