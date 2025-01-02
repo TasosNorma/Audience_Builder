@@ -4,7 +4,7 @@ services:
     region: frankfurt
     runtime: python
     buildCommand: "pip install -r requirements.txt && pip install playwright && playwright install chromium" 
-    startCommand: "gunicorn app:app"
+    startCommand: "gunicorn 'app:create_app()'"
     envVars:
       - key: SECRET_KEY
         sync: false
