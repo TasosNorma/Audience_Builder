@@ -30,7 +30,7 @@ def process_url_task(self,url:str,user_id:int):
             tweet_count=result.get("tweet_count", 0),
             error_message=result.get("message", None),
             task_id=self.request.id,
-            created_at=datetime.now(timezone.utc)
+            created_at_utc=datetime.now(timezone.utc)
         )
         db.add(processing_result)
         db.commit()

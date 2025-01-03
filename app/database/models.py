@@ -66,6 +66,6 @@ class ProcessingResult(Base):
     tweet_count = Column(Integer, default=0)
     error_message = Column(Text, nullable=True)
     task_id = Column(String(50), nullable=True)
-    created_at_utc = Column(DateTime, default=datetime.utcnow)
+    created_at_utc = Column(DateTime, default=datetime.now(timezone.utc))
 
     user = relationship('User', backref='processing_results')
